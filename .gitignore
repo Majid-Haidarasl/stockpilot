@@ -1,38 +1,196 @@
-# env / secrets
+# =========================
+# Secrets & local config
+# =========================
 .env
 .env.*
 !.env.example
+!.env.*.example
 *.pem
 *.key
+*.p12
+*.pfx
+*.crt
+!**/infra/**/*.example.crt
 secrets/
+**/secrets/
+*.secret
+credentials.json
+service-account*.json
+resticroot/
+restic/
 
-# OS / editor
+# =========================
+# OS
+# =========================
 .DS_Store
+.AppleDouble
+.LSOverride
 Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+*.stackdump
+
+# =========================
+# Editors / IDEs / agents
+# =========================
 .vscode/
+!.vscode/extensions.json
+!.vscode/settings.json.example
 .idea/
 *.swp
+*.swo
+*~
+*.sublime-project
+*.sublime-workspace
+.history/
+.cursor/skills/
+.cursor/**/cache/
+.claude/
+.codex/
+.continue/
+.windsurf/
+.agents/
+.factory/
+.kiro/
+.augment/
+.gemini/
+.opencode/
+.qoder/
+.roo/
+.trae/
 
-# Python
+# =========================
+# Python / uv / quality
+# =========================
 __pycache__/
 *.py[cod]
+*$py.class
+*.so
+.Python
 .venv/
+venv/
+ENV/
+env/
+backend/.venv/
+*.egg-info/
+.eggs/
+dist/
+build/
+pip-wheel-metadata/
 .mypy_cache/
 .ruff_cache/
 .pytest_cache/
+.pytype/
+.dmypy.json
+dmypy.json
 .coverage
+.coverage.*
+coverage.xml
 htmlcov/
+.tox/
+.nox/
+.hypothesis/
+.cache/
+*.cover
+.python-version
 
-# Node
+# =========================
+# Node / frontend
+# =========================
 node_modules/
-dist/
-build/
-*.log
+frontend/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 .npm/
+.yarn/
+.pnpm-store/
+.turbo/
+.vite/
+frontend/dist/
+frontend/build/
+*.tsbuildinfo
+.eslintcache
+.stylelintcache
 
-# Docker / local
+# Keep lockfiles; ignore accidental local package dumps
+*.tgz
+
+# =========================
+# Generated API / local codegen temp
+# =========================
+# Hand-edited generated trees stay tracked once committed by the project.
+# Ignore local scratch / failed codegen dumps:
+frontend/src/generated/api/.tmp/
+*.generated.tmp.*
+
+# =========================
+# Docker / Compose / local runtime
+# =========================
 *.override.local.yaml
+compose.override.local.yaml
+docker-compose.override.yml
+.docker/
+postgres-data/
+rabbitmq-data/
+caddy-data/
+caddy-config/
+grafana-data/
+prometheus-data/
+backup-data/
+*.dump
+*.sql.gz
+!**/infra/**/init*.sql
 
-# generated / temp
+# =========================
+# Tests / e2e / load artifacts
+# =========================
+test-results/
+playwright-report/
+playwright/.cache/
+blob-report/
+.nyc_output/
+locust_*.csv
+locust_*.html
+*.prof
+*.lprof
+
+# =========================
+# Logs / temp / OS junk
+# =========================
+*.log
+logs/
 *.tmp
+*.temp
 .tmp/
+.temp/
+tmp/
+temp/
+*.bak
+*.orig
+*.rej
+
+# =========================
+# Backup / restore drills (never commit dumps)
+# =========================
+backups/
+restore-*/
+*.restic
+dump/
+
+# =========================
+# Evidence / local reports with possible secrets
+# =========================
+docs/evidence/local/
+docs/evidence/*.local.md
+
+# =========================
+# Misc
+# =========================
+*.local
+!*.local.example
+.direnv/
+.envrc.local

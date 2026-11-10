@@ -1,0 +1,18 @@
+---
+description: Multi-tenancy, RLS, session, and permission rules
+globs: backend/src/stockpilot/modules/access/**,backend/src/stockpilot/platform/security/**,backend/tests/**
+alwaysApply: false
+---
+
+# Multi-tenancy and security
+
+- Layered defence: valid session → membership in the path's `tenant_id` → immutable `ActorContext` → explicit tenant in repository queries → PostgreSQL RLS with `SET LOCAL` only in the current transaction → composite FKs including `tenant_id`.
+- `ActorContext` is not built from a free-form request body. Cross-organization resource access returns `404`. Missing permission in the user's own org returns `403`. Invalid session returns `401`.
+- Roles are org-scoped: `admin`, `sales`, `warehouse`, `viewer`. One role per membership in v1. The last active admin cannot drop their own admin role; race-protect that with an organization lock.
+- Sessions live in PostgreSQL. Browser cookie: opaque random id, `HttpOnly`, `Secure`, `SameSite=Lax`, host-scoped. Store a hash, not the raw value. Rotate the id after login and sensitive events. OIDC tokens are not in `localStorage` or JS-readable cookies; if kept, they are server-side, encrypted, with a key outside the database.
+- Login: Authorization Code + PKCE via Keycloak and Authlib. Allow-listed redirect URIs. Validate signature, issuer, audience, expiry, and nonce. Issuer must be identical for browser and API; do not disable issuer checks to paper over `localhost` vs `keycloak:8080`.
+- CSRF: session-bound token and Origin checks on mutating requests. No open public CORS. CSP and baseline headers on Caddy.
+- Session: 30 minutes idle, 8 hours maximum. Refresh is locked so two requests cannot consume one refresh token. Keycloak down must not create or improperly renew sessions. Do not claim global back-channel logout unless it is implemented (OPEN DECISION).
+- Initial mutating rate limit: 60 requests per minute per session (final number OPEN DECISION). In-memory limiter is acceptable for a single API process; document reset-on-restart. Logs must never contain passwords, tokens, session cookies, or full login bodies.
+- RLS tests and tenant-isolation tests run as the **runtime** role, not as table owner. Relay's DB role can see Outbox metadata across tenants and must not read orders or customers.
+- Frontend query keys include `tenant_id`. Switching org or logging out clears tenant-sensitive client cache.

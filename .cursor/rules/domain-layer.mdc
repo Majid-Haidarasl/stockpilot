@@ -1,0 +1,17 @@
+---
+description: Domain and application layer dependency and invariant rules
+globs: backend/src/stockpilot/modules/**/domain/**,backend/src/stockpilot/modules/**/application/**,backend/tests/unit/**,backend/tests/application/**
+alwaysApply: false
+---
+
+# Domain and application
+
+- `domain` must not import FastAPI, Pydantic HTTP models, SQLAlchemy, Celery, or other infrastructure. Import Linter and architecture tests must fail those imports.
+- `application` coordinates use cases, defines the transaction boundary (`UnitOfWork`), and depends on ports plus other modules' public contracts. It must not import database adapters.
+- Status transitions go through **named domain methods** only. Terminal states (`SHIPPED`, `CANCELLED`, `EXPIRED`) do not reopen. Returns are out of v1 and must not be faked by writing status backwards.
+- Inventory invariant: `0 <= reserved <= on_hand`. `available` is always `on_hand - reserved`. Reservation is all-or-nothing. After reserve, lines, customer, and prices are frozen (prices taken from catalog under a product-row lock). Draft totals are estimates.
+- `Money` is integer rial + `IRR`. Do not sum different currencies. Line quantity is a positive integer; max 20 lines; no duplicate product on an order; max 100,000 per line; max unit price `10^12` IRR; max `on_hand` 1,000,000,000.
+- Decreasing adjustments must not take `on_hand` below `reserved`; reason and actor are required. Deactivating a product blocks new reserves only.
+- Reserve, confirm, cancel, expire, and ship change order and inventory in **one** PostgreSQL transaction, together with audit, Outbox, and idempotency response. Inventory adapters stage changes and must not `commit`.
+- Confirm after expiry must expire, release stock, record the outcome, then return `409` `RESERVATION_EXPIRED` without rolling back the expiry.
+- Application tests with in-memory repositories do not prove real locks. Real lock and concurrency tests belong in integration tests against PostgreSQL 17.

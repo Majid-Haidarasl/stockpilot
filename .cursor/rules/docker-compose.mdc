@@ -1,0 +1,20 @@
+---
+description: Docker Compose, images, and local-only execution rules
+globs: compose*.yaml,compose*.yml,**/Dockerfile,.env.example,.github/workflows/**,infra/**
+alwaysApply: false
+---
+
+# Docker and Compose
+
+- Everything the project builds, tests, or operates runs in **Linux containers** on the developer's **Windows 11** machine via Docker Desktop (WSL2), or later on a single deploy host. The architecture does not change with the host OS. Do not add host-side Python/Node install steps to the README. Document host commands in **PowerShell**, one per line, with no bash `&&`, no `sudo`, and no host `chmod`.
+- Files: `compose.yaml` (shared/core), `compose.dev.yaml` (code mounts, dev commands), `compose.prod.yaml` (versioned images, no host mounts, operational secrets). Commit `.env.example` only. Keep the pack's `.gitattributes`. Entrypoints and `infra/**/*.sh` must use LF endings.
+- Default repo path is a Windows folder such as `C:\dev\stockpilot` (no spaces, no Persian characters in the path). Cloning under the WSL filesystem is optional and advanced, not required. Enable Vite `server.watch.usePolling` for `frontend-dev` so hot reload works on Windows bind mounts.
+- If port `5432` fails to bind, a local Windows Postgres (or other service) is likely using it. Publish a different **host** port; leave the container port at `5432`. Ask for at least **8 GB** RAM in Docker Desktop (WSL engine). If Docker Hub pulls are blocked, ask the developer to set `registry-mirrors` in Docker Desktop's Docker Engine JSON; do not invent a mirror URL.
+- Phase 1 must bring up at least: `postgres`, `migrate`, `api` (health endpoints), a frontend shell (`frontend-dev` and/or `edge`), `backend-checks`, and `frontend-checks`. Do not pretend Keycloak, RabbitMQ, worker, relay, scheduler, observability, or backup already work until their tasks land. You may reserve later service names only if they are clearly incomplete and not required to start the stack.
+- `api`, `worker`, `relay`, and `scheduler` share one backend image and differ by command. `migrate` is the only service with the schema-owner role. `ops` bootstrap must be idempotent; `seed-demo` is separate and off by default in production.
+- Wait with `service_healthy` and `service_completed_successfully`, not bare `depends_on`. `/health/ready` must not require RabbitMQ.
+- Production publishes only Caddy web ports. No Docker socket for api/worker/relay/scheduler/ops AI tools. Prefer non-root, `no-new-privileges`, dropped caps, read-only root FS where practical. Do not blindly break official infra images.
+- Pin images by version tag and digest for release; never `latest`. Playwright image version matches the project package. Record week-1 compatibility pins in-repo. **Do not invent patch versions.**
+- CI (GitHub Actions) runs the same containerized checks. Default permissions read-only; pin third-party actions by version or digest. Build release images once and promote the digest (GHCR).
+- Never make `docker compose down -v` a normal dev step. Restore drills use a separate Compose project name, network, and volumes.
+- Do not add a Makefile that requires host `make`. If a host helper is needed, add a PowerShell `.ps1` and still prefer `docker compose` as the real implementation.

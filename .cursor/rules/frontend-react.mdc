@@ -1,0 +1,18 @@
+---
+description: React TypeScript Vite MUI RTL frontend rules
+globs: frontend/**
+alwaysApply: false
+---
+
+# Frontend
+
+- React + TypeScript **strict** + Vite. Node.js **24 LTS** in the build image. TanStack Query, React Router, React Hook Form, Zod, MUI with RTL (including portals). Do not introduce Next.js.
+- UI is Persian and right-to-left. SKUs, ids, and technical samples use LTR islands. A suitable font, spacing, and complete labels are required; `direction: rtl` alone is not enough. Amounts display explicitly as rial (`IRR`). Money strings must not be coerced to `number`.
+- Pages: login, org picker, dashboard, products, customers, inventory and ledger, order list, draft form, order detail (status, allowed actions, frozen lines, reservation deadline, timeline), notifications, members.
+- TanStack Query keys include `tenant_id`. Switching organization or logging out clears tenant-sensitive cache.
+- Draft prices are labelled as a current-price **estimate**. The reserve response shows frozen prices. The countdown is guidance; the server decides expiry. No optimistic updates for reserve, ship, or inventory changes.
+- Every page has loading, empty, error, and forbidden states. Insufficient stock shows product name and available quantity. Version conflict reloads fresh data and does not auto-resubmit. Disable the action button in flight; backend idempotency remains the guarantee. Reuse the same `Idempotency-Key` on retry of the same action; never mint a new key automatically.
+- Forms: labels, associated errors, keyboard order, visible focus. Check desktop and ~390px width. Status is never colour-only.
+- Types come from generated OpenAPI output under `src/generated/api/`. Do not hand-edit that tree; regenerate when the contract changes.
+- Frontend quality runs in the `frontend-checks` Compose service (ESLint, typecheck, Vitest). Playwright runs in the `e2e` service when that task exists, with an image version matching the project Playwright package.
+- On the Windows 11 host, `frontend-dev` bind-mounts the source. Enable Vite `server.watch.usePolling` (true) so hot reload works. Do not assume inotify works on a `/c/...` or `C:\...` mount.

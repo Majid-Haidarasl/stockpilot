@@ -3,6 +3,7 @@
 Web app for small/medium distribution companies to manage orders and stock.
 
 Basic flow:
+
 1. sales creates a customer order
 2. system reserves available stock
 3. sales confirms the order
@@ -10,40 +11,61 @@ Basic flow:
 
 If the reservation expires or the order gets cancelled, reserved stock goes back.
 
-## What I'm aiming for (v1)
+## Status
 
-- multi-tenant (each company only sees its own data)
-- Keycloak login + server-side sessions
-- product catalog, customers, inventory receipts/adjustments
-- order lifecycle: draft → reserved → confirmed → shipped
-- in-app notifications for important order changes
-- audit log + a small dashboard
-- everything runnable with Docker Compose
+Phase 1 foundation is in progress: product docs, Docker Compose skeleton, health API, Persian RTL UI shell, Postgres/Alembic bootstrap, and containerized quality checks.
 
-## Stack
+## Requirements (Windows 11 host)
+
+- Docker Desktop (WSL2 engine, give the engine **≥ 8 GB** RAM if you can)
+- Git for Windows
+- Cursor (optional but recommended)
+- **Do not** install project Python or Node on Windows for this repo
+
+Preferred path shape: `C:\dev\stockpilot` (avoid spaces / non-ASCII in the path when possible).
+
+## Quickstart (PowerShell)
+
+```powershell
+copy .env.example .env
+docker compose -f compose.yaml -f compose.dev.yaml up -d --wait postgres
+docker compose -f compose.yaml -f compose.dev.yaml run --rm migrate
+docker compose -f compose.yaml -f compose.dev.yaml up -d --build --wait api frontend-dev
+```
+
+Then open:
+
+- API live: http://localhost:8000/health/live
+- API ready (after migrate): http://localhost:8000/health/ready
+- UI shell: http://localhost:5173
+
+If host port `5432` is already taken, set `POSTGRES_HOST_PORT` in `.env` (container port stays `5432`).
+
+## Quality checks (PowerShell)
+
+```powershell
+docker compose -f compose.yaml -f compose.dev.yaml --profile test run --rm backend-checks
+docker compose -f compose.yaml -f compose.dev.yaml --profile test run --rm frontend-checks
+```
+
+## Docs
+
+- Product language / roles / order lifecycle: `docs/product/`
+- ADRs: `docs/architecture/decisions/`
+- Agent brief: `AGENTS.md`
+- Task specs: `docs/tasks/`
+
+## Stack (v1 direction)
 
 | Area | Choice |
 |---|---|
-| Backend | Python / FastAPI |
-| DB | PostgreSQL |
-| Auth | Keycloak |
-| Frontend | React + TypeScript + Vite + MUI (RTL, Persian UI) |
-| Queue | RabbitMQ + Celery |
-| Edge | Caddy |
-| Ops | Docker Compose, Prometheus/Grafana later |
-
-Architecture is a modular monolith — one backend image, separate processes for API / worker / relay / scheduler. Not microservices for v1.
-
-## Repo status
-
-Empty for now. Planning docs are ready; implementation starts from phase 1 (repo scaffold + compose + domain foundation).
-
-## Local notes
-
-- Dev host: Windows 11 + Docker Desktop (WSL2)
-- Don't install project Python/Node on the host — use containers
-- Preferred project path without spaces / non-ASCII chars if possible
+| Backend | Python / FastAPI (modular monolith) |
+| DB | PostgreSQL 17 |
+| Auth | Keycloak (from Phase 2) |
+| Frontend | React + TypeScript + Vite + MUI RTL |
+| Queue | RabbitMQ + Celery (later phase) |
+| Edge | Caddy (production-like routing later) |
 
 ## License
 
-Private project for now.
+Private/public project settings are managed on GitHub. No separate license file yet.

@@ -1,0 +1,36 @@
+services:
+  postgres:
+    ports:
+      # If host 5432 is taken, set POSTGRES_HOST_PORT in .env (container stays 5432).
+      - "${POSTGRES_HOST_PORT:-5432}:5432"
+
+  api:
+    ports:
+      - "${API_HOST_PORT:-8000}:8000"
+    volumes:
+      - ./backend/src:/app/src:ro
+    command: ["uvicorn", "stockpilot.bootstrap.app:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+  frontend-dev:
+    ports:
+      - "${FRONTEND_HOST_PORT:-5173}:5173"
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+    environment:
+      CHOKIDAR_USEPOLLING: "true"
+      WATCHPACK_POLLING: "true"
+
+  backend-checks:
+    volumes:
+      - ./backend/src:/app/src:ro
+      - ./backend/tests:/app/tests:ro
+      - ./backend/alembic:/app/alembic:ro
+
+  frontend-checks:
+    volumes:
+      - ./frontend/src:/app/src:ro
+      - ./frontend/index.html:/app/index.html:ro
+
+volumes:
+  frontend_node_modules:

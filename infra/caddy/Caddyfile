@@ -1,0 +1,4 @@
+# Placeholder for later edge routing (Phase 1 serves UI via frontend-dev).
+:80 {
+  respond "StockPilot edge placeholder" 200
+}

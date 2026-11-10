@@ -1,0 +1,19 @@
+---
+description: Standing StockPilot rules for every Cursor change
+alwaysApply: true
+---
+
+# Core rules
+
+- You are working on **StockPilot**, a Modular Monolith for order and inventory management. Read `@AGENTS.md` and the current `@docs/tasks/Txx.md` before editing.
+- Do not invent requirements. If the spec is silent, label it **OPEN DECISION** and stop for the developer.
+- One reviewable behaviour per change (about two to four hours of developer review). Plan first, then implement, then run checks, then stop for review.
+- **Never run project toolchains on the host.** Python, Node, pytest, npm, Alembic, Ruff, and similar tools run only via `docker compose` (see commands in `AGENTS.md`). The developer host is **Windows 11** with Docker Desktop (WSL2 backend), Git for Windows, Cursor, and PowerShell. Images stay **Linux**. No hidden host install steps, no `sudo`, no host `chmod`, no `apt`, no Ubuntu-only instructions.
+- Host commands must be **PowerShell-compatible**: one command per line; do not chain with bash `&&`. Do not add a Makefile that requires `make` on the host. Prefer running helpers inside containers; add a `.ps1` alongside only if a host script is necessary.
+- Keep `.gitattributes` (`* text=auto eol=lf`, `*.sh` LF, `*.ps1` CRLF). Scripts that run in containers must be LF. Do not tell the developer to set `core.autocrlf true`. Recommend `git config --global core.autocrlf false` and `git config --global core.longpaths true`.
+- Never commit secrets, real personal data, or tokens. Do not put them in Git, Dockerfiles, images, logs, or prompts. Demo data is synthetic. Do not hand-edit `frontend/src/generated/api/`.
+- Do not change order `status` by direct field assignment. Do not update stock outside a `UnitOfWork`. Do not `commit` inside a repository or inventory adapter.
+- Every commercial path needs a validated `ActorContext` (session + membership + permission). Cross-tenant access returns `404`.
+- Currency is integer `IRR` (rial). Money in JSON is a decimal digit string, never `float`, never coerced to JavaScript `number`.
+- Report what changed, which Docker checks actually ran, and what remains open. Do not mark an unrun test as passed.
+- Keep identifiers stable: `Tenant`, `Product`, `StockPosition`, `Order`, `OrderLine`, `Reservation`, `Money`, `Quantity`, `ActorContext`, `InventoryCommands`, statuses `DRAFT|RESERVED|CONFIRMED|SHIPPED|CANCELLED|EXPIRED`, reservation statuses `HELD|ALLOCATED|RELEASED|EXPIRED|CONSUMED`, roles `admin|sales|warehouse|viewer`.

@@ -1,0 +1,106 @@
+[project]
+name = "stockpilot"
+version = "0.1.0"
+description = "StockPilot modular monolith backend"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.32",
+  "pydantic>=2.10",
+  "pydantic-settings>=2.6",
+  "sqlalchemy>=2.0",
+  "psycopg[binary]>=3.2",
+  "alembic>=1.14",
+]
+
+[dependency-groups]
+dev = [
+  "pytest>=8.3",
+  "httpx>=0.28",
+  "ruff>=0.8",
+  "mypy>=1.13",
+  "import-linter>=2.1",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+packages = ["stockpilot"]
+mypy_path = "src"
+
+[[tool.mypy.overrides]]
+module = ["alembic.*"]
+ignore_missing_imports = true
+
+[tool.importlinter]
+root_packages = ["stockpilot"]
+include_external_packages = true
+# Cross-module public imports are allowlisted later when they exist; unmatched
+# ignore entries would fail the build in Phase 1 empty modules.
+unmatched_ignore_imports_alerting = "none"
+
+[[tool.importlinter.contracts]]
+name = "Domain must not import infrastructure"
+type = "forbidden"
+source_modules = [
+  "stockpilot.modules.access.domain",
+  "stockpilot.modules.catalog.domain",
+  "stockpilot.modules.sales.domain",
+  "stockpilot.modules.inventory.domain",
+  "stockpilot.modules.notifications.domain",
+]
+forbidden_modules = [
+  "sqlalchemy",
+  "fastapi",
+  "celery",
+  "alembic",
+  "psycopg",
+]
+
+[[tool.importlinter.contracts]]
+name = "Application must not import outbound adapters"
+type = "forbidden"
+source_modules = [
+  "stockpilot.modules.access.application",
+  "stockpilot.modules.catalog.application",
+  "stockpilot.modules.sales.application",
+  "stockpilot.modules.inventory.application",
+  "stockpilot.modules.notifications.application",
+]
+forbidden_modules = [
+  "stockpilot.modules.access.adapters.outbound",
+  "stockpilot.modules.catalog.adapters.outbound",
+  "stockpilot.modules.sales.adapters.outbound",
+  "stockpilot.modules.inventory.adapters.outbound",
+  "stockpilot.modules.notifications.adapters.outbound",
+]
+
+[[tool.importlinter.contracts]]
+name = "Modules stay independent except via public contracts"
+type = "independence"
+modules = [
+  "stockpilot.modules.access",
+  "stockpilot.modules.catalog",
+  "stockpilot.modules.sales",
+  "stockpilot.modules.inventory",
+  "stockpilot.modules.notifications",
+]
+# When cross-module public imports appear, add them here as ignore_imports.
+# Example: "stockpilot.modules.sales -> stockpilot.modules.inventory.public"

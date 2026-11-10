@@ -1,0 +1,18 @@
+---
+description: Transactional Outbox, Relay, Celery worker, Inbox, and scheduler rules
+globs: backend/src/stockpilot/platform/outbox/**,backend/src/stockpilot/modules/notifications/**,backend/src/stockpilot/**/scheduler/**
+alwaysApply: false
+---
+
+# Outbox and messaging
+
+- Business truth stays in PostgreSQL. RabbitMQ only transports work. The Outbox row is written in the **same transaction** as the order/inventory change.
+- Outbox payload is a versioned **integration event**, not a dumped domain object. No passwords, session tokens, or unnecessary contact details. Keep published bodies at least 30 days for controlled republish.
+- Relay claims batches with a lock and a lease in a **short** transaction. Do not hold queue network I/O inside a long locked transaction. Mark published only after RabbitMQ publisher confirm (persistent queue and message, known routing, detect unroutable).
+- Relay publishes a **named Celery task** with the standard envelope. One mapping from event type to task, covered by an integration test. Delivery is **at-least-once**, not exactly-once.
+- Worker writes Inbox with unique `(consumer_name, event_id)` and creates the notification in the same transaction, then acks. Duplicates must not create a second notification. Automatic Inbox purge is **not** enabled in v1 (OPEN DECISION).
+- Retry transient consume errors with exponential backoff + jitter, max five attempts. Poison / unknown type goes to durable `failed_jobs` (sanitized). Do not ack a poison message if the failure cannot be recorded. Configure `acks_late` and `task_reject_on_worker_lost` deliberately and test a killed worker.
+- Replay is an audited ops-only command. Do not delete Inbox rows casually to "fix" logic changes.
+- The expiry scheduler uses the same expire use case, in small batches, **independent of RabbitMQ**. One scheduler instance in v1; locks neutralize accidental doubles. Do not rebuild expiry logic in the messaging week; the week-4 skeleton and testable clock are the base.
+- No consumer mutates order status based on message arrival order. Notifications sort by occurred-at; current status is read from the order.
+- Required cut-point tests: after commit before publish; after publish before Relay success; after notification before worker ack. Business result must be neither lost nor doubled.

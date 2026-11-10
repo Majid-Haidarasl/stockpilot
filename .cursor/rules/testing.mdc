@@ -1,0 +1,15 @@
+---
+description: Test strategy, critical tests, and quality gates
+globs: backend/tests/**,frontend/**,tests/**
+alwaysApply: false
+---
+
+# Testing
+
+- Run tests only through Compose: `backend-checks`, `frontend-checks`, and later `e2e` / `load-test`. PostgreSQL tests use PostgreSQL 17, never SQLite, for locks, transactions, or RLS.
+- Levels: domain unit (no I/O); application with in-memory repos (do not claim they prove locks); adapter contract tests on both memory and Postgres; integration; concurrency with real independent connections; Hypothesis for stock sequences; Vitest for UI; Playwright for the browser path; Locust for load.
+- Domain and application branch coverage target is at least 85%. Coverage is not a substitute for missing critical tests.
+- **Do not remove** these critical tests, and add them in the task that first implements the behaviour: last-stock concurrent reserve; multi-line reserve with one short line; idempotent replay; second cancel; expire vs confirm race; cancel vs ship race; price change during reserve; concurrent last-admin removal; cross-tenant request; duplicate queue message; rollback of order+stock when movement/event write fails; confirm-after-expiry commits expiry and returns `409`.
+- Messaging cut points: after order before publish; after publish before Relay success mark; after notification before ack.
+- Do not hide flakes with mandatory reruns. Repeatable security, isolation, or balance failures block release.
+- Quality gate per change: Ruff, mypy, relevant tests, Import Linter, needed migrations, regenerated frontend contract. Report only checks that actually ran.

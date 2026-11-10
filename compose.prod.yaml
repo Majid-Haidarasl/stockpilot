@@ -1,0 +1,10 @@
+# Minimal production-shaped overlay for Phase 1.
+# Release practice: use versioned image digests — never "latest".
+services:
+  api:
+    restart: unless-stopped
+    # Replace with digest-pinned images after CI publishes them, e.g.:
+    # image: ghcr.io/majid-haidarasl/stockpilot-backend@sha256:REPLACE_AFTER_PUBLISH
+
+  postgres:
+    restart: unless-stopped

@@ -1,0 +1,18 @@
+---
+description: Backend Python, FastAPI, and module layout rules
+globs: backend/**
+alwaysApply: false
+---
+
+# Backend Python
+
+- Python **3.13**, FastAPI, Pydantic, Uvicorn, SQLAlchemy **2.x**, Psycopg **3**, Alembic, managed with **uv**. Commit `uv.lock`. Install in Docker from the official Python base using the uv Docker guide. Do not use the deprecated prebuilt FastAPI image.
+- Commercial use cases and SQLAlchemy are **sync**. FastAPI commercial routes use `def` (thread pool). OIDC routes that need an async client use `async def`. Do not run sync SQL on the event loop. Do not share a `Session` across threads or concurrent work.
+- Package layout follows section 19 of `AGENTS.md`: `src/stockpilot/{bootstrap,modules/{access,catalog,sales,inventory,notifications},platform}`. Each module has `domain`, `application` (commands/queries/ports), `adapters/inbound`, `adapters/outbound`, and `public.py`.
+- Other modules import only `public.py` (or a documented public contract), never another module's internal repository or tables. `inventory` must not import `Order`. `sales` calls `InventoryCommands` (e.g. `reserve_all`) and must not import inventory internals. `platform` has no price, order, or stock rules.
+- HTTP/Pydantic models stay at the inbound adapter. ORM models are not domain models.
+- Configuration is loaded into a typed settings model. Domain code does not read environment variables directly.
+- Names express intent (`reserve_order`, `InsufficientStock`). No `except Exception: pass`, pervasive `Any`, god `BaseService`, or hand-rolled DI framework. Constructor injection and a small composition root in `bootstrap` are enough.
+- Emit OpenAPI from the backend. Error bodies use RFC 9457 `application/problem+json` with a machine `code` (`INSUFFICIENT_STOCK`, `RESERVATION_EXPIRED`, `IDEMPOTENCY_KEY_REUSED`, `VERSION_CONFLICT`, …). Do not leak SQL or internals.
+- Mutating commercial commands require `Idempotency-Key`. Existing entities use `expected_version`. Health: `/health/live` and `/health/ready` (ready checks Postgres and schema version, not RabbitMQ).
+- Quality tools: Ruff (format + lint; do not add overlapping formatters), mypy, Import Linter. Run them through the `backend-checks` Compose service.

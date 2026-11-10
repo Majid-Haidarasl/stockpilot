@@ -1,0 +1,17 @@
+---
+description: PostgreSQL roles, schema design, and Alembic rules
+globs: backend/alembic/**,infra/postgres/**,backend/src/stockpilot/platform/persistence/**
+alwaysApply: false
+---
+
+# Database and migrations
+
+- PostgreSQL **17**. Two logical databases: `stockpilot` and `keycloak`, with separate usernames and privileges. The app never queries Keycloak's tables.
+- Two product-database roles at minimum: a **migration / schema-owner** role used only by the `migrate` job, and a limited **runtime** role for the API and processors. The runtime role is not table owner, not superuser, and not `BYPASSRLS`.
+- One Alembic branch, single heads. Review every generated migration. Do not auto-apply migrations to operational data. Prefer Expand/Contract for backward-compatible changes.
+- Module schemas: `access`, `catalog`, `sales`, `inventory`, `notifications`, `platform`. Business tables use `tenant_id`. Record ids are UUIDs (not a substitute for auth). Timestamps are `timestamptz`.
+- Money is a 64-bit integer, never `float`. Check constraints must enforce stock non-negativity and `reserved <= on_hand`, plus the numeric caps in `AGENTS.md`.
+- Tenant-scoped FKs are **composite and include `tenant_id`**. No cascade deletes across modules. Used commercial data is deactivated, not deleted. A cross-module FK does not allow reading another module's internals.
+- `StockPosition` is created on first receipt; uniqueness guards concurrent creation. Reserve on a missing position equals zero stock; do not auto-create positions on reserve.
+- Indexes and list pagination follow `AGENTS.md` (cursor pagination on `(created_at, id)`, max 100 rows, allow-listed filters).
+- Tests that claim RLS, locks, or transactions must use PostgreSQL 17, not SQLite, and must use the real runtime role where RLS is the point.
