@@ -110,5 +110,6 @@ modules = [
 ignore_imports = [
   "stockpilot.modules.catalog.adapters.inbound.routes -> stockpilot.modules.access.public",
   "stockpilot.modules.sales.adapters.inbound.customer_routes -> stockpilot.modules.access.public",
+  "stockpilot.modules.sales.adapters.inbound.order_routes -> stockpilot.modules.access.public",
   "stockpilot.modules.inventory.adapters.inbound.routes -> stockpilot.modules.access.public",
 ]

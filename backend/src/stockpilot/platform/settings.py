@@ -18,7 +18,7 @@ class Settings(BaseSettings):
         alias="STOCKPILOT_DATABASE_URL",
     )
     expected_schema_revision: str = Field(
-        default="0005_reservations",
+        default="0006_orders",
         alias="STOCKPILOT_EXPECTED_SCHEMA_REVISION",
     )
 
