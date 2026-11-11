@@ -1,0 +1,97 @@
+{
+  "realm": "stockpilot",
+  "enabled": true,
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": false,
+  "editUsernameAllowed": false,
+  "sslRequired": "none",
+  "roles": {
+    "realm": [
+      { "name": "default-roles-stockpilot", "composite": false }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "stockpilot-api",
+      "name": "StockPilot API",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "stockpilot-dev-client-secret-change-me",
+      "redirectUris": [
+        "http://localhost:8200/auth/callback",
+        "http://localhost:8000/auth/callback"
+      ],
+      "webOrigins": [
+        "http://localhost:5173",
+        "http://localhost:8200",
+        "http://localhost:8000"
+      ],
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:5173/*##http://localhost:5173"
+      },
+      "protocol": "openid-connect"
+    }
+  ],
+  "users": [
+    {
+      "username": "admin@aftab.test",
+      "enabled": true,
+      "email": "admin@aftab.test",
+      "emailVerified": true,
+      "firstName": "Aftab",
+      "lastName": "Admin",
+      "credentials": [
+        { "type": "password", "value": "Passw0rd!", "temporary": false }
+      ]
+    },
+    {
+      "username": "sales@aftab.test",
+      "enabled": true,
+      "email": "sales@aftab.test",
+      "emailVerified": true,
+      "firstName": "Aftab",
+      "lastName": "Sales",
+      "credentials": [
+        { "type": "password", "value": "Passw0rd!", "temporary": false }
+      ]
+    },
+    {
+      "username": "warehouse@aftab.test",
+      "enabled": true,
+      "email": "warehouse@aftab.test",
+      "emailVerified": true,
+      "firstName": "Aftab",
+      "lastName": "Warehouse",
+      "credentials": [
+        { "type": "password", "value": "Passw0rd!", "temporary": false }
+      ]
+    },
+    {
+      "username": "admin@baran.test",
+      "enabled": true,
+      "email": "admin@baran.test",
+      "emailVerified": true,
+      "firstName": "Baran",
+      "lastName": "Admin",
+      "credentials": [
+        { "type": "password", "value": "Passw0rd!", "temporary": false }
+      ]
+    },
+    {
+      "username": "viewer@baran.test",
+      "enabled": true,
+      "email": "viewer@baran.test",
+      "emailVerified": true,
+      "firstName": "Baran",
+      "lastName": "Viewer",
+      "credentials": [
+        { "type": "password", "value": "Passw0rd!", "temporary": false }
+      ]
+    }
+  ]
+}

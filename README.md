@@ -13,7 +13,7 @@ If the reservation expires or the order gets cancelled, reserved stock goes back
 
 ## Status
 
-Phase 1 foundation is in progress: product docs, Docker Compose skeleton, health API, Persian RTL UI shell, Postgres/Alembic bootstrap, and containerized quality checks.
+Phase 2 (identity, orgs, catalog/customers) is implemented locally. Evidence: `docs/evidence/phase-2-report.md`.
 
 ## Requirements (Windows 11 host)
 
@@ -24,22 +24,29 @@ Phase 1 foundation is in progress: product docs, Docker Compose skeleton, health
 
 Preferred path shape: `C:\dev\stockpilot` (avoid spaces / non-ASCII in the path when possible).
 
+On many Windows hosts Hyper-V reserves `8000` and `8080`. Defaults use **API `8200`** and **Keycloak `8180`**.
+
 ## Quickstart (PowerShell)
 
 ```powershell
 copy .env.example .env
 docker compose -f compose.yaml -f compose.dev.yaml up -d --wait postgres
+docker compose -f compose.yaml -f compose.dev.yaml build migrate ops api
 docker compose -f compose.yaml -f compose.dev.yaml run --rm migrate
-docker compose -f compose.yaml -f compose.dev.yaml up -d --build --wait api frontend-dev
+docker compose -f compose.yaml -f compose.dev.yaml run --rm ops
+docker compose -f compose.yaml -f compose.dev.yaml up -d --build --wait keycloak api frontend-dev
 ```
 
 Then open:
 
-- API live: http://localhost:8000/health/live
-- API ready (after migrate): http://localhost:8000/health/ready
-- UI shell: http://localhost:5173
+- API live: http://localhost:8200/health/live
+- API ready (after migrate): http://localhost:8200/health/ready
+- UI: http://localhost:5173
+- Keycloak (dev): http://localhost:8180
 
-If host port `5432` is already taken, set `POSTGRES_HOST_PORT` in `.env` (container port stays `5432`).
+Demo users (password `Passw0rd!`): `admin@aftab.test`, `sales@aftab.test`, `warehouse@aftab.test`, `admin@baran.test`, `viewer@baran.test`.
+
+Login entry: http://localhost:5173/login → Keycloak → org picker → products/customers.
 
 ## Quality checks (PowerShell)
 
@@ -61,7 +68,7 @@ docker compose -f compose.yaml -f compose.dev.yaml --profile test run --rm front
 |---|---|
 | Backend | Python / FastAPI (modular monolith) |
 | DB | PostgreSQL 17 |
-| Auth | Keycloak (from Phase 2) |
+| Auth | Keycloak (OIDC + PKCE, opaque server session) |
 | Frontend | React + TypeScript + Vite + MUI RTL |
 | Queue | RabbitMQ + Celery (later phase) |
 | Edge | Caddy (production-like routing later) |

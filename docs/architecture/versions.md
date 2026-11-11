@@ -31,6 +31,16 @@ Host: Windows 11 + Docker Desktop (WSL2), AMD64. Containers are Linux.
 | import-linter | 2.16 |
 | pytest | 9.2.0 |
 | httpx | 0.28.1 |
+| authlib | 1.9.5 |
+| cryptography | 50.0.2 |
+
+## Identity (Phase 2)
+
+| Component | Version / note |
+|---|---|
+| Keycloak image | `quay.io/keycloak/keycloak:26.0` |
+| Public issuer (Windows default) | `http://localhost:8180/realms/stockpilot` |
+| API host port (Windows default) | `8200` |
 
 ## Frontend packages (from `package-lock.json`, verified in containers)
 

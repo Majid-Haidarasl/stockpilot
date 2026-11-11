@@ -1,12 +1,16 @@
 services:
   postgres:
     ports:
-      # If host 5432 is taken, set POSTGRES_HOST_PORT in .env (container stays 5432).
       - "${POSTGRES_HOST_PORT:-5432}:5432"
+
+  keycloak:
+    ports:
+      - "${KEYCLOAK_HOST_PORT:-8180}:8080"
+      - "${KEYCLOAK_MGMT_HOST_PORT:-9000}:9000"
 
   api:
     ports:
-      - "${API_HOST_PORT:-8000}:8000"
+      - "${API_HOST_PORT:-8200}:8000"
     volumes:
       - ./backend/src:/app/src:ro
     command: ["uvicorn", "stockpilot.bootstrap.app:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
@@ -20,12 +24,15 @@ services:
     environment:
       CHOKIDAR_USEPOLLING: "true"
       WATCHPACK_POLLING: "true"
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8200}
 
   backend-checks:
     volumes:
       - ./backend/src:/app/src:ro
       - ./backend/tests:/app/tests:ro
       - ./backend/alembic:/app/alembic:ro
+      - ./backend/pyproject.toml:/app/pyproject.toml:ro
+      - ./backend/uv.lock:/app/uv.lock:ro
 
   frontend-checks:
     volumes:

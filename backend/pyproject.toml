@@ -12,6 +12,9 @@ dependencies = [
   "sqlalchemy>=2.0",
   "psycopg[binary]>=3.2",
   "alembic>=1.14",
+  "authlib>=1.4",
+  "httpx>=0.28",
+  "cryptography>=44.0",
 ]
 
 [dependency-groups]
@@ -38,6 +41,7 @@ src = ["src", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]
+ignore = ["B008"]
 
 [tool.mypy]
 python_version = "3.13"
@@ -46,7 +50,7 @@ packages = ["stockpilot"]
 mypy_path = "src"
 
 [[tool.mypy.overrides]]
-module = ["alembic.*"]
+module = ["alembic.*", "authlib.*", "cryptography.*"]
 ignore_missing_imports = true
 
 [tool.importlinter]
@@ -102,5 +106,7 @@ modules = [
   "stockpilot.modules.inventory",
   "stockpilot.modules.notifications",
 ]
-# When cross-module public imports appear, add them here as ignore_imports.
-# Example: "stockpilot.modules.sales -> stockpilot.modules.inventory.public"
+ignore_imports = [
+  "stockpilot.modules.catalog.adapters.inbound.routes -> stockpilot.modules.access.public",
+  "stockpilot.modules.sales.adapters.inbound.customer_routes -> stockpilot.modules.access.public",
+]

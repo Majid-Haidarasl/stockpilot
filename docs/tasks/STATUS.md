@@ -6,7 +6,11 @@
 | T02 | Done (local) | Monorepo, Compose, API health, RTL shell |
 | T03 | Done (local) | Postgres 17, roles, Alembic `0001_schemas`, ready check |
 | T04 | Done (local) | Ruff/mypy/Import Linter/pytest, ESLint/tsc/Vitest, CI workflow |
+| T05 | Done (local) | Keycloak, OIDC+PKCE, opaque sessions, `/api/v1/me`, logout CSRF |
+| T06 | Done (local) | Tenants/memberships, ActorContext, RLS `SET LOCAL`, ops bootstrap, last-admin lock |
+| T07 | Done (local) | Products/customers APIs + Persian UI, integer IRR strings, per-tenant SKU |
 
-Phase 1 verification evidence: `docs/evidence/phase-1-report.md`
+Phase 1 verification evidence: `docs/evidence/phase-1-report.md`  
+Phase 2 verification evidence: `docs/evidence/phase-2-report.md`
 
 Commits/pushes are owned by the developer.

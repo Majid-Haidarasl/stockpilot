@@ -41,4 +41,4 @@ RUN uv sync --frozen \
 ENV PATH="/app/.venv/bin:$PATH"
 USER app
 WORKDIR /app
-CMD ["bash", "-c", "ruff check src tests && ruff format --check src tests && mypy && lint-imports && pytest -q && alembic upgrade head"]
+CMD ["bash", "-c", "ruff check src tests && ruff format --check src tests && mypy && lint-imports && alembic upgrade head && pytest -q"]

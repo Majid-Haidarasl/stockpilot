@@ -21,6 +21,36 @@ services:
     networks:
       - stockpilot
 
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:-keycloak_dev_change_me}
+      KC_HOSTNAME: localhost
+      KC_HOSTNAME_PORT: ${KEYCLOAK_HOST_PORT:-8180}
+      KC_HOSTNAME_STRICT: "false"
+      KC_HTTP_ENABLED: "true"
+      KC_HEALTH_ENABLED: "true"
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+    volumes:
+      - ./infra/keycloak/realm:/opt/keycloak/data/import:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      # Keycloak 26 serves the app on 8080; management health is on 9000 when enabled.
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8080"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+    networks:
+      - stockpilot
+
   migrate:
     build:
       context: ./backend
@@ -35,19 +65,47 @@ services:
       - stockpilot
     restart: "no"
 
+  ops:
+    build:
+      context: ./backend
+      target: runtime
+    environment:
+      STOCKPILOT_MIGRATION_DATABASE_URL: postgresql+psycopg://stockpilot_migrator:${STOCKPILOT_MIGRATOR_PASSWORD:-migrator_dev_change_me}@postgres:5432/stockpilot
+      STOCKPILOT_OIDC_ISSUER: ${STOCKPILOT_OIDC_ISSUER:-http://localhost:8180/realms/stockpilot}
+    command: ["python", "-m", "stockpilot.bootstrap.ops", "bootstrap", "--environment", "development"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    networks:
+      - stockpilot
+    restart: "no"
+
   api:
     build:
       context: ./backend
       target: runtime
     environment:
       STOCKPILOT_DATABASE_URL: postgresql+psycopg://stockpilot_app:${STOCKPILOT_APP_PASSWORD:-app_dev_change_me}@postgres:5432/stockpilot
-      STOCKPILOT_EXPECTED_SCHEMA_REVISION: 0001_schemas
+      STOCKPILOT_EXPECTED_SCHEMA_REVISION: 0003_catalog_customers_rls
       STOCKPILOT_ENVIRONMENT: development
+      STOCKPILOT_OIDC_ISSUER: ${STOCKPILOT_OIDC_ISSUER:-http://localhost:8180/realms/stockpilot}
+      STOCKPILOT_OIDC_METADATA_URL: http://keycloak:8080/realms/stockpilot/.well-known/openid-configuration
+      STOCKPILOT_OIDC_CLIENT_ID: stockpilot-api
+      STOCKPILOT_OIDC_CLIENT_SECRET: ${STOCKPILOT_OIDC_CLIENT_SECRET:-stockpilot-dev-client-secret-change-me}
+      STOCKPILOT_OIDC_REDIRECT_URI: ${STOCKPILOT_OIDC_REDIRECT_URI:-http://localhost:8200/auth/callback}
+      STOCKPILOT_OIDC_ALLOWED_REDIRECT_URIS: ${STOCKPILOT_OIDC_ALLOWED_REDIRECT_URIS:-http://localhost:8200/auth/callback}
+      STOCKPILOT_COOKIE_SECURE: "false"
+      STOCKPILOT_CORS_ORIGINS: ${STOCKPILOT_CORS_ORIGINS:-http://localhost:5173}
+      STOCKPILOT_FRONTEND_DEFAULT_URL: ${STOCKPILOT_FRONTEND_DEFAULT_URL:-http://localhost:5173}
+      STOCKPILOT_APP_PUBLIC_ORIGIN: ${STOCKPILOT_APP_PUBLIC_ORIGIN:-http://localhost:8200}
+      STOCKPILOT_TOKEN_ENCRYPTION_KEY: ${STOCKPILOT_TOKEN_ENCRYPTION_KEY:-dev-only-fernet-key-32bytes-long!!}
     depends_on:
       postgres:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+      keycloak:
+        condition: service_healthy
     networks:
       - stockpilot
     healthcheck:
@@ -60,6 +118,8 @@ services:
     build:
       context: ./frontend
       target: dev
+    environment:
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8200}
     networks:
       - stockpilot
 
@@ -71,7 +131,7 @@ services:
     environment:
       STOCKPILOT_MIGRATION_DATABASE_URL: postgresql+psycopg://stockpilot_migrator:${STOCKPILOT_MIGRATOR_PASSWORD:-migrator_dev_change_me}@postgres:5432/stockpilot
       STOCKPILOT_DATABASE_URL: postgresql+psycopg://stockpilot_app:${STOCKPILOT_APP_PASSWORD:-app_dev_change_me}@postgres:5432/stockpilot
-      STOCKPILOT_EXPECTED_SCHEMA_REVISION: 0001_schemas
+      STOCKPILOT_EXPECTED_SCHEMA_REVISION: 0003_catalog_customers_rls
     depends_on:
       postgres:
         condition: service_healthy
