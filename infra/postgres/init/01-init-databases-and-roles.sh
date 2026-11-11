@@ -13,18 +13,22 @@ CREATE ROLE stockpilot_app LOGIN PASSWORD '${STOCKPILOT_APP_PASSWORD}' NOSUPERUS
 CREATE ROLE keycloak LOGIN PASSWORD '${KEYCLOAK_DB_PASSWORD}' NOSUPERUSER NOBYPASSRLS;
 
 CREATE DATABASE stockpilot OWNER stockpilot_migrator;
+CREATE DATABASE stockpilot_test OWNER stockpilot_migrator;
 CREATE DATABASE keycloak OWNER keycloak;
 
 GRANT CONNECT ON DATABASE stockpilot TO stockpilot_app;
+GRANT CONNECT ON DATABASE stockpilot_test TO stockpilot_app;
 EOSQL
 
-psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "stockpilot" <<EOSQL
+for db in stockpilot stockpilot_test; do
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$db" <<EOSQL
 -- Runtime role must not own application schemas/tables (prepared for RLS in T06).
 REVOKE ALL ON SCHEMA public FROM PUBLIC;
 REVOKE ALL ON SCHEMA public FROM stockpilot_app;
 GRANT USAGE ON SCHEMA public TO stockpilot_app;
 GRANT CREATE ON SCHEMA public TO stockpilot_migrator;
 EOSQL
+done
 
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "keycloak" <<EOSQL
 GRANT ALL ON SCHEMA public TO keycloak;

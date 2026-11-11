@@ -46,13 +46,17 @@ def _migration_engine() -> Engine:
     return create_engine(url, pool_pre_ping=True)
 
 
-def _assert_dev_only(environment: str) -> None:
+def _assert_dev_only(environment: str, *, command: str) -> None:
     env = environment.strip().lower()
     settings_env = get_settings().environment.strip().lower()
     if env in _PROD_ENVIRONMENTS or settings_env in _PROD_ENVIRONMENTS:
         raise SystemExit(
-            "seed-demo is development-only and refuses production/staging environments"
+            f"{command} is development-only and refuses production/staging environments"
         )
+
+
+# Prefixes used by integration-test fixtures (never seed/demo company slugs).
+_TEST_TENANT_SLUG_PREFIXES = ("inv-", "rsv-")
 
 
 def _default_sample_path() -> Path:
@@ -108,7 +112,7 @@ def cmd_bootstrap(environment: str) -> None:
 
 
 def cmd_seed_demo(environment: str, sample_path: Path) -> None:
-    _assert_dev_only(environment)
+    _assert_dev_only(environment, command="seed-demo")
     if not sample_path.is_file():
         raise SystemExit(f"Sample data file not found: {sample_path}")
 
@@ -229,18 +233,59 @@ def cmd_balance_check(tenant_slug: str | None) -> None:
             tenant_id = UUID(str(row[0]))
 
         report = inventory.balance_report(tenant_id)
-        mismatches = [r for r in report if not r["physical_ok"] or not r["reserved_ok"]]
+        mismatches = [
+            r
+            for r in report
+            if not r["physical_ok"] or not r["reserved_ok"] or not r["reservation_ok"]
+        ]
         print(f"balance-check positions={len(report)} mismatches={len(mismatches)}", flush=True)
         for item in mismatches:
             print(
                 "MISMATCH "
                 f"tenant={item['tenant_id']} product={item['product_id']} "
                 f"on_hand={item['on_hand']} physical_sum={item['physical_sum']} "
-                f"reserved={item['reserved']} reserved_sum={item['reserved_sum']}",
+                f"reserved={item['reserved']} reserved_sum={item['reserved_sum']} "
+                f"reservation_sum={item['reservation_reserved_sum']}",
                 flush=True,
             )
         if mismatches:
             raise SystemExit(1)
+
+
+def cmd_cleanup_test_tenants(environment: str) -> None:
+    """Remove leftover integration-test tenants (inv-*, rsv-*) from the demo DB."""
+    _assert_dev_only(environment, command="cleanup-test-tenants")
+    engine = _migration_engine()
+    removed: list[str] = []
+    with UnitOfWork(engine=engine) as uow:
+        like_clauses = " OR ".join(
+            f"slug LIKE :p{i}" for i in range(len(_TEST_TENANT_SLUG_PREFIXES))
+        )
+        params = {f"p{i}": f"{prefix}%" for i, prefix in enumerate(_TEST_TENANT_SLUG_PREFIXES)}
+        tenants = uow.connection.execute(
+            text(f"SELECT id, slug FROM access.tenants WHERE {like_clauses}"),
+            params,
+        ).fetchall()
+        for tenant_id, slug in tenants:
+            tid = {"t": tenant_id}
+            for sql in (
+                "DELETE FROM inventory.reservation_lines WHERE tenant_id = :t",
+                "DELETE FROM inventory.reservations WHERE tenant_id = :t",
+                "DELETE FROM inventory.movements WHERE tenant_id = :t",
+                "DELETE FROM inventory.stock_positions WHERE tenant_id = :t",
+                "DELETE FROM catalog.products WHERE tenant_id = :t",
+                "DELETE FROM sales.customers WHERE tenant_id = :t",
+                "DELETE FROM platform.audit_log WHERE tenant_id = :t",
+                "DELETE FROM access.memberships WHERE tenant_id = :t",
+                "DELETE FROM access.tenants WHERE id = :t",
+            ):
+                uow.connection.execute(text(sql), tid)
+            removed.append(str(slug))
+    print(
+        f"cleanup-test-tenants complete removed={len(removed)} "
+        f"slugs={','.join(removed) if removed else '(none)'}",
+        flush=True,
+    )
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -258,6 +303,12 @@ def main(argv: list[str] | None = None) -> None:
         help="Path to stockpilot-sample-data.md",
     )
 
+    cleanup = sub.add_parser(
+        "cleanup-test-tenants",
+        help="Dev-only: remove leftover inv-*/rsv-* integration-test tenants",
+    )
+    cleanup.add_argument("--environment", default="development")
+
     balance = sub.add_parser("balance-check", help="Report stock ledger vs counter mismatches")
     balance.add_argument("--tenant-slug", default=None)
 
@@ -266,6 +317,8 @@ def main(argv: list[str] | None = None) -> None:
         cmd_bootstrap(args.environment)
     elif args.command == "seed-demo":
         cmd_seed_demo(args.environment, Path(args.sample_path))
+    elif args.command == "cleanup-test-tenants":
+        cmd_cleanup_test_tenants(args.environment)
     elif args.command == "balance-check":
         cmd_balance_check(args.tenant_slug)
     else:

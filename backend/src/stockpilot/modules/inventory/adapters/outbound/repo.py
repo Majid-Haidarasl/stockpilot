@@ -9,7 +9,13 @@ from uuid import UUID, uuid4
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
-from stockpilot.modules.inventory.domain.models import DEFAULT_WAREHOUSE, StockPosition
+from stockpilot.modules.inventory.domain.models import (
+    DEFAULT_WAREHOUSE,
+    Reservation,
+    ReservationLine,
+    ReservationStatus,
+    StockPosition,
+)
 
 
 class InventoryRepository:
@@ -258,6 +264,132 @@ class InventoryRepository:
         )
         return dict(row)
 
+    def insert_reservation(self, reservation: Reservation) -> None:
+        self._conn.execute(
+            text(
+                """
+                INSERT INTO inventory.reservations (
+                  id, tenant_id, order_id, status, expires_at, version
+                ) VALUES (
+                  :id, :tenant_id, :order_id, :status, :expires_at, :version
+                )
+                """
+            ),
+            {
+                "id": str(reservation.id),
+                "tenant_id": str(reservation.tenant_id),
+                "order_id": str(reservation.order_id),
+                "status": reservation.status.value,
+                "expires_at": reservation.expires_at,
+                "version": reservation.version,
+            },
+        )
+        for line in reservation.lines:
+            self._conn.execute(
+                text(
+                    """
+                    INSERT INTO inventory.reservation_lines (
+                      id, tenant_id, reservation_id, product_id, quantity
+                    ) VALUES (
+                      :id, :tenant_id, :reservation_id, :product_id, :quantity
+                    )
+                    """
+                ),
+                {
+                    "id": str(line.id),
+                    "tenant_id": str(reservation.tenant_id),
+                    "reservation_id": str(reservation.id),
+                    "product_id": str(line.product_id),
+                    "quantity": line.quantity,
+                },
+            )
+
+    def get_reservation_for_update(
+        self, tenant_id: UUID, reservation_id: UUID
+    ) -> Reservation | None:
+        row = (
+            self._conn.execute(
+                text(
+                    """
+                SELECT id, tenant_id, order_id, status, expires_at, version
+                FROM inventory.reservations
+                WHERE tenant_id = :tenant_id AND id = :id
+                FOR UPDATE
+                """
+                ),
+                {"tenant_id": str(tenant_id), "id": str(reservation_id)},
+            )
+            .mappings()
+            .first()
+        )
+        if row is None:
+            return None
+        lines = (
+            self._conn.execute(
+                text(
+                    """
+                SELECT id, product_id, quantity
+                FROM inventory.reservation_lines
+                WHERE tenant_id = :tenant_id AND reservation_id = :reservation_id
+                ORDER BY product_id
+                """
+                ),
+                {"tenant_id": str(tenant_id), "reservation_id": str(reservation_id)},
+            )
+            .mappings()
+            .all()
+        )
+        return Reservation(
+            id=UUID(str(row["id"])),
+            tenant_id=UUID(str(row["tenant_id"])),
+            order_id=UUID(str(row["order_id"])),
+            status=ReservationStatus(str(row["status"])),
+            expires_at=row["expires_at"],
+            version=int(row["version"]),
+            lines=[
+                ReservationLine(
+                    id=UUID(str(line["id"])),
+                    product_id=UUID(str(line["product_id"])),
+                    quantity=int(line["quantity"]),
+                )
+                for line in lines
+            ],
+        )
+
+    def save_reservation(self, reservation: Reservation) -> None:
+        self._conn.execute(
+            text(
+                """
+                UPDATE inventory.reservations
+                SET status = :status,
+                    expires_at = :expires_at,
+                    version = :version,
+                    updated_at = now()
+                WHERE id = :id AND tenant_id = :tenant_id AND version = :expected_version
+                """
+            ),
+            {
+                "id": str(reservation.id),
+                "tenant_id": str(reservation.tenant_id),
+                "status": reservation.status.value,
+                "expires_at": reservation.expires_at,
+                "version": reservation.version,
+                "expected_version": reservation.version - 1,
+            },
+        )
+
+    def count_reservations_for_order(self, tenant_id: UUID, order_id: UUID) -> int:
+        row = self._conn.execute(
+            text(
+                """
+                SELECT count(*) FROM inventory.reservations
+                WHERE tenant_id = :tenant_id AND order_id = :order_id
+                """
+            ),
+            {"tenant_id": str(tenant_id), "order_id": str(order_id)},
+        ).first()
+        return int(row[0]) if row else 0
+
     def balance_report(self, tenant_id: UUID | None = None) -> list[dict[str, Any]]:
         params: dict[str, Any] = {}
         tenant_filter = ""
@@ -270,15 +402,32 @@ class InventoryRepository:
                     f"""
                 SELECT sp.tenant_id, sp.product_id, sp.warehouse_code,
                        sp.on_hand, sp.reserved,
-                       COALESCE(SUM(m.physical_delta), 0) AS physical_sum,
-                       COALESCE(SUM(m.reserved_delta), 0) AS reserved_sum
+                       COALESCE(mov.physical_sum, 0) AS physical_sum,
+                       COALESCE(mov.reserved_sum, 0) AS reserved_sum,
+                       COALESCE(res.reservation_reserved_sum, 0) AS reservation_reserved_sum
                 FROM inventory.stock_positions sp
-                LEFT JOIN inventory.movements m
-                  ON m.tenant_id = sp.tenant_id
-                 AND m.product_id = sp.product_id
-                 AND m.warehouse_code = sp.warehouse_code
+                LEFT JOIN (
+                  SELECT tenant_id, product_id, warehouse_code,
+                         SUM(physical_delta) AS physical_sum,
+                         SUM(reserved_delta) AS reserved_sum
+                  FROM inventory.movements
+                  GROUP BY tenant_id, product_id, warehouse_code
+                ) mov
+                  ON mov.tenant_id = sp.tenant_id
+                 AND mov.product_id = sp.product_id
+                 AND mov.warehouse_code = sp.warehouse_code
+                LEFT JOIN (
+                  SELECT rl.tenant_id, rl.product_id,
+                         SUM(rl.quantity) AS reservation_reserved_sum
+                  FROM inventory.reservation_lines rl
+                  JOIN inventory.reservations r
+                    ON r.tenant_id = rl.tenant_id AND r.id = rl.reservation_id
+                  WHERE r.status IN ('HELD', 'ALLOCATED')
+                  GROUP BY rl.tenant_id, rl.product_id
+                ) res
+                  ON res.tenant_id = sp.tenant_id
+                 AND res.product_id = sp.product_id
                 {tenant_filter}
-                GROUP BY sp.tenant_id, sp.product_id, sp.warehouse_code, sp.on_hand, sp.reserved
                 ORDER BY sp.tenant_id, sp.product_id
                 """
                 ),
@@ -291,6 +440,7 @@ class InventoryRepository:
         for row in rows:
             physical_sum = int(row["physical_sum"])
             reserved_sum = int(row["reserved_sum"])
+            reservation_reserved_sum = int(row["reservation_reserved_sum"])
             on_hand = int(row["on_hand"])
             reserved = int(row["reserved"])
             report.append(
@@ -302,8 +452,10 @@ class InventoryRepository:
                     "reserved": reserved,
                     "physical_sum": physical_sum,
                     "reserved_sum": reserved_sum,
+                    "reservation_reserved_sum": reservation_reserved_sum,
                     "physical_ok": physical_sum == on_hand,
                     "reserved_ok": reserved_sum == reserved,
+                    "reservation_ok": reservation_reserved_sum == reserved,
                 }
             )
         return report

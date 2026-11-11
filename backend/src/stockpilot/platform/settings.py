@@ -18,7 +18,7 @@ class Settings(BaseSettings):
         alias="STOCKPILOT_DATABASE_URL",
     )
     expected_schema_revision: str = Field(
-        default="0004_inventory",
+        default="0005_reservations",
         alias="STOCKPILOT_EXPECTED_SCHEMA_REVISION",
     )
 
