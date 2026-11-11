@@ -390,6 +390,34 @@ class InventoryRepository:
         ).first()
         return int(row[0]) if row else 0
 
+    def get_reservation_id_by_order(self, tenant_id: UUID, order_id: UUID) -> UUID | None:
+        row = self._conn.execute(
+            text(
+                """
+                SELECT id FROM inventory.reservations
+                WHERE tenant_id = :tenant_id AND order_id = :order_id
+                LIMIT 1
+                """
+            ),
+            {"tenant_id": str(tenant_id), "order_id": str(order_id)},
+        ).first()
+        return UUID(str(row[0])) if row else None
+
+    def list_reservation_product_ids(self, tenant_id: UUID, reservation_id: UUID) -> list[UUID]:
+        """Read line product ids without locking the reservation row."""
+        rows = self._conn.execute(
+            text(
+                """
+                SELECT product_id
+                FROM inventory.reservation_lines
+                WHERE tenant_id = :tenant_id AND reservation_id = :reservation_id
+                ORDER BY product_id
+                """
+            ),
+            {"tenant_id": str(tenant_id), "reservation_id": str(reservation_id)},
+        ).fetchall()
+        return [UUID(str(r[0])) for r in rows]
+
     def balance_report(self, tenant_id: UUID | None = None) -> list[dict[str, Any]]:
         params: dict[str, Any] = {}
         tenant_filter = ""

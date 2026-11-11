@@ -12,11 +12,13 @@
 | T08 | Done (local) | Stock positions/movements, receipts/adjustments, ledger UI, seed-demo |
 | T09 | Done (local) | `InventoryCommands.reserve_all`, reservations schema, concurrency + shortfall tests, `stockpilot_test` |
 | T10 | Done (local) | Order domain + draft APIs, clock/scheduler skeleton; inventory wiring deferred to T11 |
+| T11 | Done (local) | Shared UoW cycle, idempotency+Outbox writer, lock order in ADR-002, tenant-scoped expire scheduler; critical tests ×20 last-stock + Retry-After |
 
 Phase 1 verification evidence: `docs/evidence/phase-1-report.md`  
 Phase 2 verification evidence: `docs/evidence/phase-2-report.md`  
 Phase 3 step 1 report: `docs/reports/phase3-step1.md`  
 Phase 3 step 2 report: `docs/reports/phase3-step2.md`  
-Phase 3 step 3 report: `docs/reports/phase3-step3.md`
+Phase 3 step 3 report: `docs/reports/phase3-step3.md`  
+Phase 3 step 4 report: `docs/reports/phase3-step4.md`
 
 Commits/pushes are owned by the developer.

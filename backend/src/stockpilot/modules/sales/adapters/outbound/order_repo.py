@@ -48,6 +48,74 @@ class OrderRepository:
         )
         return dict(row) if row else None
 
+    def lock_products_for_update(
+        self, tenant_id: UUID, product_ids: list[UUID]
+    ) -> list[dict[str, Any]]:
+        """Lock catalog products in stable id order (reserve path)."""
+        locked: list[dict[str, Any]] = []
+        for product_id in sorted(product_ids, key=str):
+            row = (
+                self._conn.execute(
+                    text(
+                        """
+                    SELECT id, sku, title, unit_price_rial, currency, is_active
+                    FROM catalog.products
+                    WHERE tenant_id = :tenant_id AND id = :id
+                    FOR UPDATE
+                    """
+                    ),
+                    {"tenant_id": str(tenant_id), "id": str(product_id)},
+                )
+                .mappings()
+                .first()
+            )
+            if row is None:
+                raise LookupError(f"Product {product_id} not found")
+            locked.append(dict(row))
+        return locked
+
+    def get_order_for_update(self, tenant_id: UUID, order_id: UUID) -> Order | None:
+        row = (
+            self._conn.execute(
+                text(
+                    """
+                SELECT id, tenant_id, customer_id, status, version,
+                       reserved_at, expires_at, confirmed_at, shipped_at, cancelled_at,
+                       created_at, updated_at
+                FROM sales.orders
+                WHERE tenant_id = :tenant_id AND id = :id
+                FOR UPDATE
+                """
+                ),
+                {"tenant_id": str(tenant_id), "id": str(order_id)},
+            )
+            .mappings()
+            .first()
+        )
+        if row is None:
+            return None
+        return self._hydrate(row)
+
+    def list_expired_reserved(
+        self, tenant_id: UUID, *, now: datetime, limit: int = 50
+    ) -> list[UUID]:
+        limit = max(1, min(limit, 100))
+        rows = self._conn.execute(
+            text(
+                """
+                SELECT id FROM sales.orders
+                WHERE tenant_id = :tenant_id
+                  AND status = 'RESERVED'
+                  AND expires_at IS NOT NULL
+                  AND expires_at <= :now
+                ORDER BY expires_at, id
+                LIMIT :limit
+                """
+            ),
+            {"tenant_id": str(tenant_id), "now": now, "limit": limit},
+        ).fetchall()
+        return [UUID(str(r[0])) for r in rows]
+
     def get_order(self, tenant_id: UUID, order_id: UUID) -> Order | None:
         row = (
             self._conn.execute(
@@ -67,6 +135,9 @@ class OrderRepository:
         )
         if row is None:
             return None
+        return self._hydrate(row)
+
+    def _hydrate(self, row: Any) -> Order:
         lines = (
             self._conn.execute(
                 text(
@@ -78,7 +149,7 @@ class OrderRepository:
                 ORDER BY product_sku
                 """
                 ),
-                {"tenant_id": str(tenant_id), "order_id": str(order_id)},
+                {"tenant_id": str(row["tenant_id"]), "order_id": str(row["id"])},
             )
             .mappings()
             .all()

@@ -1,7 +1,8 @@
-"""Draft order HTTP API (no reserve/confirm/ship wiring — T11)."""
+"""Order draft CRUD and cycle commands (reserve/confirm/cancel/ship)."""
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime
 from typing import Annotated, Any
 from uuid import UUID, uuid4
@@ -10,16 +11,35 @@ from fastapi import APIRouter, Depends, Header, Query
 from pydantic import BaseModel, Field
 
 from stockpilot.modules.access.public import ActorContext, require_actor, require_csrf
+from stockpilot.modules.inventory.public import (
+    InactiveProduct,
+    InsufficientStock,
+    ReservationConflict,
+)
+from stockpilot.modules.sales.adapters.outbound.order_cycle import (
+    OrderCycleService,
+    OrderNotFound,
+    VersionConflict,
+)
 from stockpilot.modules.sales.adapters.outbound.order_repo import OrderRepository
 from stockpilot.modules.sales.domain.order import (
     DuplicateProductLine,
     InvalidLineQuantity,
+    InvalidOrderState,
     Order,
     OrderLine,
     OrderNotEditable,
     TooManyOrderLines,
 )
 from stockpilot.platform.http.problems import problem
+from stockpilot.platform.persistence.idempotency import (
+    IdempotencyInProgress,
+    IdempotencyKeyReused,
+    IdempotencyStore,
+    StoredResponse,
+    fingerprint,
+)
+from stockpilot.platform.persistence.retry import retry_on_deadlock
 from stockpilot.platform.persistence.uow import UnitOfWork
 
 router = APIRouter(tags=["orders"])
@@ -82,6 +102,13 @@ class PatchOrderBody(BaseModel):
     expected_version: int
     customer_id: UUID | None = None
     lines: list[OrderLineIn] | None = Field(default=None, min_length=1, max_length=20)
+
+
+class CycleBody(BaseModel):
+    expected_version: int
+
+
+CONTRACT_VERSION = "v1"
 
 
 def _order_out(order: Order) -> OrderOut:
@@ -288,3 +315,263 @@ def patch_order(
         saved = orders.get_order(tenant_id, order.id)
     assert saved is not None
     return _order_out(saved)
+
+
+def _cycle_response(result: Any) -> OrderOut | Any:
+    if result.problem_code:
+        return problem(
+            status=result.http_status,
+            code=result.problem_code,
+            title=result.problem_title or result.problem_code,
+            errors=result.problem_errors,
+        )
+    return _order_out(result.order)
+
+
+def _run_cycle(
+    *,
+    tenant_id: UUID,
+    order_id: UUID,
+    actor: ActorContext,
+    body: CycleBody,
+    operation: str,
+    idempotency_key: str | None,
+    path: str,
+    permission_ok: bool,
+    work: Callable[[OrderCycleService], Any],
+) -> Any:
+    if not permission_ok:
+        return problem(status=403, code="FORBIDDEN", title="Forbidden")
+    if not idempotency_key:
+        return problem(
+            status=422,
+            code="VALIDATION_ERROR",
+            title="Idempotency-Key header is required",
+        )
+    fp = fingerprint(
+        method="POST",
+        path=path,
+        contract_version=CONTRACT_VERSION,
+        body=body.model_dump(mode="json"),
+    )
+
+    def once() -> Any:
+        with UnitOfWork(
+            user_id=actor.user_id, tenant_id=actor.tenant_id, role=actor.role.value
+        ) as uow:
+            store = IdempotencyStore(uow.connection)
+            try:
+                prior = store.begin(
+                    tenant_id=tenant_id,
+                    user_id=actor.user_id,
+                    operation=operation,
+                    key=idempotency_key,
+                    fp=fp,
+                )
+            except IdempotencyKeyReused:
+                return problem(
+                    status=409,
+                    code="IDEMPOTENCY_KEY_REUSED",
+                    title="Idempotency-Key reused with a different body",
+                )
+            except IdempotencyInProgress as exc:
+                headers = {"Retry-After": str(exc.retry_after)}
+                resp = problem(
+                    status=409,
+                    code="IDEMPOTENCY_IN_PROGRESS",
+                    title="Request with this Idempotency-Key is still in progress",
+                )
+                for hk, hv in headers.items():
+                    resp.headers[hk] = hv
+                return resp
+            if prior is not None:
+                if prior.status >= 400:
+                    return problem(
+                        status=prior.status,
+                        code=str(prior.body.get("code", "REPLAY")),
+                        title=str(prior.body.get("title", "Replayed response")),
+                        detail=prior.body.get("detail"),
+                        errors=prior.body.get("errors"),
+                    )
+                return OrderOut.model_validate(prior.body)
+
+            cycle = OrderCycleService(uow.connection)
+            try:
+                result = work(cycle)
+            except OrderNotFound:
+                return problem(status=404, code="NOT_FOUND", title="Order not found")
+            except VersionConflict:
+                return problem(status=409, code="VERSION_CONFLICT", title="Order version conflict")
+            except InsufficientStock as exc:
+                errors = [
+                    {
+                        "sku": s.sku,
+                        "requested": s.requested,
+                        "available": s.available,
+                    }
+                    for s in exc.shortfalls
+                ]
+                store.complete(
+                    tenant_id=tenant_id,
+                    user_id=actor.user_id,
+                    operation=operation,
+                    key=idempotency_key,
+                    response=StoredResponse(
+                        status=409,
+                        body={
+                            "code": "INSUFFICIENT_STOCK",
+                            "title": "Insufficient stock for reservation",
+                            "errors": errors,
+                        },
+                        headers={},
+                    ),
+                )
+                return problem(
+                    status=409,
+                    code="INSUFFICIENT_STOCK",
+                    title="Insufficient stock for reservation",
+                    errors=errors,
+                )
+            except (InactiveProduct, InvalidOrderState, ReservationConflict) as exc:
+                return problem(status=409, code="CONFLICT", title=str(exc))
+
+            out = _cycle_response(result)
+            if result.problem_code:
+                store.complete(
+                    tenant_id=tenant_id,
+                    user_id=actor.user_id,
+                    operation=operation,
+                    key=idempotency_key,
+                    response=StoredResponse(
+                        status=result.http_status,
+                        body={
+                            "code": result.problem_code,
+                            "title": result.problem_title,
+                        },
+                        headers={},
+                    ),
+                )
+                return out
+            payload = _order_out(result.order).model_dump(mode="json")
+            store.complete(
+                tenant_id=tenant_id,
+                user_id=actor.user_id,
+                operation=operation,
+                key=idempotency_key,
+                response=StoredResponse(status=200, body=payload, headers={}),
+            )
+            return out
+
+    return retry_on_deadlock(once)
+
+
+@router.post("/api/v1/tenants/{tenant_id}/orders/{order_id}/reserve")
+def reserve_order(
+    tenant_id: UUID,
+    order_id: UUID,
+    body: CycleBody,
+    actor: Annotated[ActorContext, Depends(require_actor)],
+    _: Annotated[Any, Depends(require_csrf)],
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+) -> OrderOut | Any:
+    path = f"/api/v1/tenants/{tenant_id}/orders/{order_id}/reserve"
+    return _run_cycle(
+        tenant_id=tenant_id,
+        order_id=order_id,
+        actor=actor,
+        body=body,
+        operation="orders.reserve",
+        idempotency_key=idempotency_key,
+        path=path,
+        permission_ok=actor.can_reserve_orders(),
+        work=lambda c: c.reserve(
+            tenant_id=tenant_id,
+            order_id=order_id,
+            actor_user_id=actor.user_id,
+            expected_version=body.expected_version,
+        ),
+    )
+
+
+@router.post("/api/v1/tenants/{tenant_id}/orders/{order_id}/confirm")
+def confirm_order(
+    tenant_id: UUID,
+    order_id: UUID,
+    body: CycleBody,
+    actor: Annotated[ActorContext, Depends(require_actor)],
+    _: Annotated[Any, Depends(require_csrf)],
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+) -> OrderOut | Any:
+    path = f"/api/v1/tenants/{tenant_id}/orders/{order_id}/confirm"
+    return _run_cycle(
+        tenant_id=tenant_id,
+        order_id=order_id,
+        actor=actor,
+        body=body,
+        operation="orders.confirm",
+        idempotency_key=idempotency_key,
+        path=path,
+        permission_ok=actor.can_confirm_orders(),
+        work=lambda c: c.confirm(
+            tenant_id=tenant_id,
+            order_id=order_id,
+            actor_user_id=actor.user_id,
+            expected_version=body.expected_version,
+        ),
+    )
+
+
+@router.post("/api/v1/tenants/{tenant_id}/orders/{order_id}/cancel")
+def cancel_order(
+    tenant_id: UUID,
+    order_id: UUID,
+    body: CycleBody,
+    actor: Annotated[ActorContext, Depends(require_actor)],
+    _: Annotated[Any, Depends(require_csrf)],
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+) -> OrderOut | Any:
+    path = f"/api/v1/tenants/{tenant_id}/orders/{order_id}/cancel"
+    return _run_cycle(
+        tenant_id=tenant_id,
+        order_id=order_id,
+        actor=actor,
+        body=body,
+        operation="orders.cancel",
+        idempotency_key=idempotency_key,
+        path=path,
+        permission_ok=actor.can_cancel_orders(),
+        work=lambda c: c.cancel(
+            tenant_id=tenant_id,
+            order_id=order_id,
+            actor_user_id=actor.user_id,
+            expected_version=body.expected_version,
+        ),
+    )
+
+
+@router.post("/api/v1/tenants/{tenant_id}/orders/{order_id}/ship")
+def ship_order(
+    tenant_id: UUID,
+    order_id: UUID,
+    body: CycleBody,
+    actor: Annotated[ActorContext, Depends(require_actor)],
+    _: Annotated[Any, Depends(require_csrf)],
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+) -> OrderOut | Any:
+    path = f"/api/v1/tenants/{tenant_id}/orders/{order_id}/ship"
+    return _run_cycle(
+        tenant_id=tenant_id,
+        order_id=order_id,
+        actor=actor,
+        body=body,
+        operation="orders.ship",
+        idempotency_key=idempotency_key,
+        path=path,
+        permission_ok=actor.can_ship_orders(),
+        work=lambda c: c.ship(
+            tenant_id=tenant_id,
+            order_id=order_id,
+            actor_user_id=actor.user_id,
+            expected_version=body.expected_version,
+        ),
+    )

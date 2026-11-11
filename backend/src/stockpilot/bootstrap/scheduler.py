@@ -1,25 +1,21 @@
-"""Reservation-expiry scheduler skeleton (T10).
+"""Reservation-expiry scheduler (tenant-scoped; no BYPASSRLS).
 
-Real batch expiry runs in T14 using the same Order.expire domain method and Clock.
-There is no public HTTP expire route. This module must not call inventory (T11).
+Processes one tenant at a time under the runtime app role with SET LOCAL
+tenant context via UnitOfWork. Never uses migrator/owner/BYPASSRLS.
+There is no public HTTP expire route.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
-from typing import Protocol
 from uuid import UUID
 
+from sqlalchemy.engine import Engine
+
+from stockpilot.modules.sales.adapters.outbound.order_cycle import OrderCycleService
+from stockpilot.modules.sales.adapters.outbound.order_repo import OrderRepository
+from stockpilot.platform.persistence.uow import UnitOfWork
 from stockpilot.platform.time.clock import Clock, SystemClock
-
-
-class ExpirableOrderPort(Protocol):
-    def list_expired_reservation_ids(
-        self, *, tenant_id: UUID, now: datetime, limit: int
-    ) -> list[UUID]: ...
-
-    def expire_order(self, *, tenant_id: UUID, order_id: UUID, now: datetime) -> None: ...
 
 
 @dataclass(slots=True)
@@ -29,19 +25,45 @@ class ExpireBatchResult:
 
 
 class ReservationExpiryScheduler:
-    """Skeleton: claim expired RESERVED orders in limited batches per tenant."""
+    """Expire RESERVED orders past expires_at, one tenant transaction at a time."""
 
-    def __init__(self, port: ExpirableOrderPort, clock: Clock | None = None) -> None:
-        self._port = port
+    def __init__(
+        self,
+        *,
+        engine: Engine,
+        clock: Clock | None = None,
+        runtime_user_id: UUID | None = None,
+    ) -> None:
+        self._engine = engine
         self._clock = clock or SystemClock()
+        self._runtime_user_id = runtime_user_id
 
-    def run_once(self, *, tenant_id: UUID, limit: int = 50) -> ExpireBatchResult:
+    def run_for_tenant(self, *, tenant_id: UUID, limit: int = 50) -> ExpireBatchResult:
+        """Run expiry for a single tenant with SET LOCAL RLS context."""
         now = self._clock.now()
-        ids = self._port.list_expired_reservation_ids(
-            tenant_id=tenant_id, now=now, limit=max(1, min(limit, 100))
-        )
-        expired = 0
-        for order_id in ids:
-            self._port.expire_order(tenant_id=tenant_id, order_id=order_id, now=now)
-            expired += 1
-        return ExpireBatchResult(examined=len(ids), expired=expired)
+        with UnitOfWork(
+            engine=self._engine,
+            user_id=self._runtime_user_id,
+            tenant_id=tenant_id,
+            role="admin",
+        ) as uow:
+            orders = OrderRepository(uow.connection)
+            ids = orders.list_expired_reserved(tenant_id, now=now, limit=limit)
+            cycle = OrderCycleService(uow.connection, clock=self._clock)
+            expired = 0
+            for order_id in ids:
+                cycle.expire(tenant_id=tenant_id, order_id=order_id, actor_user_id=None)
+                expired += 1
+            return ExpireBatchResult(examined=len(ids), expired=expired)
+
+    def run_tenants(
+        self, tenant_ids: list[UUID], *, limit_per_tenant: int = 50
+    ) -> ExpireBatchResult:
+        """Process tenants sequentially — never one cross-tenant owner session."""
+        total_examined = 0
+        total_expired = 0
+        for tenant_id in tenant_ids:
+            result = self.run_for_tenant(tenant_id=tenant_id, limit=limit_per_tenant)
+            total_examined += result.examined
+            total_expired += result.expired
+        return ExpireBatchResult(examined=total_examined, expired=total_expired)

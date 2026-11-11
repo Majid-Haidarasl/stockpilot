@@ -107,6 +107,12 @@ class SqlInventoryCommands:
         return reservation_id
 
     def allocate(self, command: AllocateStock) -> None:
+        # Lock order: positions by product id, then reservation (never reservation first).
+        product_ids = self._repo.list_reservation_product_ids(
+            command.tenant_id, command.reservation_id
+        )
+        for product_id in sorted(product_ids):
+            self._repo.get_position_for_update(command.tenant_id, product_id)
         reservation = self._repo.get_reservation_for_update(
             command.tenant_id, command.reservation_id
         )
@@ -123,6 +129,14 @@ class SqlInventoryCommands:
         )
 
     def release(self, command: ReleaseStock) -> None:
+        # Lock order: positions by product id, then reservation (never reservation first).
+        product_ids = self._repo.list_reservation_product_ids(
+            command.tenant_id, command.reservation_id
+        )
+        for product_id in sorted(product_ids):
+            position = self._repo.get_position_for_update(command.tenant_id, product_id)
+            if position is None:
+                raise ReservationConflict("Missing stock position for reservation line")
         reservation = self._repo.get_reservation_for_update(
             command.tenant_id, command.reservation_id
         )
@@ -159,6 +173,14 @@ class SqlInventoryCommands:
         )
 
     def consume(self, command: ConsumeStock) -> None:
+        # Lock order: positions by product id, then reservation (never reservation first).
+        product_ids = self._repo.list_reservation_product_ids(
+            command.tenant_id, command.reservation_id
+        )
+        for product_id in sorted(product_ids):
+            position = self._repo.get_position_for_update(command.tenant_id, product_id)
+            if position is None:
+                raise ReservationConflict("Missing stock position for reservation line")
         reservation = self._repo.get_reservation_for_update(
             command.tenant_id, command.reservation_id
         )

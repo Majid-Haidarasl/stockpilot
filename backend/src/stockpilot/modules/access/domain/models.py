@@ -51,6 +51,18 @@ class ActorContext:
     def can_view_orders(self) -> bool:
         return self.role in {Role.ADMIN, Role.SALES, Role.WAREHOUSE, Role.VIEWER}
 
+    def can_reserve_orders(self) -> bool:
+        return self.role in {Role.ADMIN, Role.SALES}
+
+    def can_confirm_orders(self) -> bool:
+        return self.role in {Role.ADMIN, Role.SALES}
+
+    def can_cancel_orders(self) -> bool:
+        return self.role in {Role.ADMIN, Role.SALES}
+
+    def can_ship_orders(self) -> bool:
+        return self.role in {Role.ADMIN, Role.WAREHOUSE}
+
 
 class AccessError(Exception):
     """Base access/domain error."""
