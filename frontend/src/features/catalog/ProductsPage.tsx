@@ -84,6 +84,9 @@ export function ProductsPage() {
           کالاها
         </Typography>
         <Stack direction="row" spacing={1}>
+          <Button component={RouterLink} to={`/t/${tenantId}/inventory`}>
+            موجودی
+          </Button>
           <Button component={RouterLink} to={`/t/${tenantId}/customers`}>
             مشتریان
           </Button>

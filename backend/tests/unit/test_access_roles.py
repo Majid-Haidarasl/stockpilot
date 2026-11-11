@@ -29,6 +29,7 @@ def test_warehouse_cannot_change_price_or_confirm_commercial_admin() -> None:
     assert not actor.can_change_product_price()
     assert not actor.can_manage_customers()
     assert not actor.can_manage_members()
+    assert actor.can_manage_inventory()
 
 
 def test_sales_can_manage_catalog_and_customers() -> None:
@@ -36,9 +37,11 @@ def test_sales_can_manage_catalog_and_customers() -> None:
     assert actor.can_manage_catalog_writes()
     assert actor.can_manage_customers()
     assert not actor.can_set_stock_warning_threshold()
+    assert not actor.can_manage_inventory()
 
 
 def test_admin_can_set_threshold_and_members() -> None:
     actor = _actor(Role.ADMIN)
     assert actor.can_set_stock_warning_threshold()
     assert actor.can_manage_members()
+    assert actor.can_manage_inventory()

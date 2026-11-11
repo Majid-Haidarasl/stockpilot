@@ -86,3 +86,27 @@ export type Customer = {
   notes: string | null;
   version: number;
 };
+
+export type InventoryItem = {
+  product_id: string;
+  sku: string;
+  title: string;
+  warehouse_code: string;
+  on_hand: number;
+  reserved: number;
+  available: number;
+  stock_warning_threshold: number;
+  version: number;
+};
+
+export type InventoryMovement = {
+  id: string;
+  product_id: string;
+  sku: string;
+  title: string;
+  physical_delta: number;
+  reserved_delta: number;
+  reason: string;
+  reference: string | null;
+  created_at: string;
+};

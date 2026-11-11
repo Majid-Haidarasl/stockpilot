@@ -283,6 +283,16 @@ class AccessRepository:
             {"slug": slug},
         ).first()
         if existing:
+            self._conn.execute(
+                text(
+                    """
+                    UPDATE access.tenants
+                    SET name = :name, updated_at = now()
+                    WHERE id = :id
+                    """
+                ),
+                {"id": str(existing[0]), "name": name},
+            )
             return UUID(str(existing[0]))
         tenant_id = uuid4()
         self._conn.execute(

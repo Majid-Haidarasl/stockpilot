@@ -18,7 +18,7 @@ class Settings(BaseSettings):
         alias="STOCKPILOT_DATABASE_URL",
     )
     expected_schema_revision: str = Field(
-        default="0003_catalog_customers_rls",
+        default="0004_inventory",
         alias="STOCKPILOT_EXPECTED_SCHEMA_REVISION",
     )
 

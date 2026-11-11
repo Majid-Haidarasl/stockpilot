@@ -3,6 +3,7 @@ import { Link as RouterLink, Route, Routes } from "react-router-dom";
 import { LoginPage } from "../features/auth/LoginPage";
 import { CustomersPage } from "../features/customers/CustomersPage";
 import { ProductsPage } from "../features/catalog/ProductsPage";
+import { InventoryPage } from "../features/inventory/InventoryPage";
 import { OrgPickerPage } from "../features/orgs/OrgPickerPage";
 
 function HomePage() {
@@ -48,6 +49,7 @@ export function App() {
       <Route path="/orgs" element={<OrgPickerPage />} />
       <Route path="/t/:tenantId/products" element={<ProductsPage />} />
       <Route path="/t/:tenantId/customers" element={<CustomersPage />} />
+      <Route path="/t/:tenantId/inventory" element={<InventoryPage />} />
     </Routes>
   );
 }

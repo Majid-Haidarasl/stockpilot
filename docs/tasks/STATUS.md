@@ -9,8 +9,10 @@
 | T05 | Done (local) | Keycloak, OIDC+PKCE, opaque sessions, `/api/v1/me`, logout CSRF |
 | T06 | Done (local) | Tenants/memberships, ActorContext, RLS `SET LOCAL`, ops bootstrap, last-admin lock |
 | T07 | Done (local) | Products/customers APIs + Persian UI, integer IRR strings, per-tenant SKU |
+| T08 | Done (local) | Stock positions/movements, receipts/adjustments, ledger UI, seed-demo |
 
 Phase 1 verification evidence: `docs/evidence/phase-1-report.md`  
-Phase 2 verification evidence: `docs/evidence/phase-2-report.md`
+Phase 2 verification evidence: `docs/evidence/phase-2-report.md`  
+Phase 3 step 1 report: `docs/reports/phase3-step1.md`
 
 Commits/pushes are owned by the developer.

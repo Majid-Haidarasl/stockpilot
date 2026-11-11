@@ -51,6 +51,24 @@ class CatalogRepository:
         )
         return dict(row) if row else None
 
+    def get_product_by_sku(self, tenant_id: UUID, sku: str) -> dict[str, Any] | None:
+        row = (
+            self._conn.execute(
+                text(
+                    """
+                SELECT id, tenant_id, sku, title, unit_price_rial, currency, is_active,
+                       stock_warning_threshold, version, created_at, updated_at
+                FROM catalog.products
+                WHERE tenant_id = :tenant_id AND sku = :sku
+                """
+                ),
+                {"tenant_id": str(tenant_id), "sku": sku},
+            )
+            .mappings()
+            .first()
+        )
+        return dict(row) if row else None
+
     def create_product(
         self,
         *,

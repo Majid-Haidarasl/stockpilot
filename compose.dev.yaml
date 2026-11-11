@@ -33,6 +33,9 @@ services:
       - ./backend/alembic:/app/alembic:ro
       - ./backend/pyproject.toml:/app/pyproject.toml:ro
       - ./backend/uv.lock:/app/uv.lock:ro
+      - ./docs:/docs:ro
+    environment:
+      STOCKPILOT_SAMPLE_DATA_PATH: /docs/stockpilot-sample-data.md
 
   frontend-checks:
     volumes:

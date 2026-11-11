@@ -42,6 +42,9 @@ class ActorContext:
     def can_manage_members(self) -> bool:
         return self.role == Role.ADMIN
 
+    def can_manage_inventory(self) -> bool:
+        return self.role in {Role.ADMIN, Role.WAREHOUSE}
+
 
 class AccessError(Exception):
     """Base access/domain error."""
