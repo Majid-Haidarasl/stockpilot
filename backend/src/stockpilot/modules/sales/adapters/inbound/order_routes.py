@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
 from datetime import datetime
 from typing import Annotated, Any
@@ -108,7 +109,46 @@ class CycleBody(BaseModel):
     expected_version: int
 
 
+class OrderTimelineEventOut(BaseModel):
+    """Safe order change event for the detail timeline (no internal payloads)."""
+
+    event_type: str
+    occurred_at: datetime
+    actor_display_name: str | None = None
+    from_status: str | None = None
+    to_status: str | None = None
+
+
 CONTRACT_VERSION = "v1"
+
+_ACTION_STATUS_FALLBACK: dict[str, tuple[str | None, str | None]] = {
+    "order.draft_created": (None, "DRAFT"),
+    "order.draft_updated": ("DRAFT", "DRAFT"),
+    "order.reserved": ("DRAFT", "RESERVED"),
+    "order.confirmed": ("RESERVED", "CONFIRMED"),
+    "order.cancelled": (None, "CANCELLED"),
+    "order.shipped": ("CONFIRMED", "SHIPPED"),
+    "order.expired": ("RESERVED", "EXPIRED"),
+}
+
+
+def _timeline_event(row: dict[str, Any]) -> OrderTimelineEventOut:
+    payload = row.get("payload_json") or {}
+    if isinstance(payload, str):
+        payload = json.loads(payload)
+    if not isinstance(payload, dict):
+        payload = {}
+    action = str(row["action_type"])
+    fallback_from, fallback_to = _ACTION_STATUS_FALLBACK.get(action, (None, None))
+    from_status = payload.get("from_status", fallback_from)
+    to_status = payload.get("to_status", fallback_to)
+    return OrderTimelineEventOut(
+        event_type=action,
+        occurred_at=row["created_at"],
+        actor_display_name=row.get("actor_display_name"),
+        from_status=str(from_status) if from_status is not None else None,
+        to_status=str(to_status) if to_status is not None else None,
+    )
 
 
 def _order_out(order: Order) -> OrderOut:
@@ -239,7 +279,12 @@ def create_order(
             actor_user_id=actor.user_id,
             action_type="order.draft_created",
             entity_id=order.id,
-            payload={"customer_id": str(body.customer_id), "lines": len(built)},
+            payload={
+                "from_status": None,
+                "to_status": "DRAFT",
+                "customer_id": str(body.customer_id),
+                "lines": len(built),
+            },
         )
         saved = orders.get_order(tenant_id, order.id)
     assert saved is not None
@@ -259,6 +304,23 @@ def get_order(
     if order is None:
         return problem(status=404, code="NOT_FOUND", title="Order not found")
     return _order_out(order)
+
+
+@router.get("/api/v1/tenants/{tenant_id}/orders/{order_id}/timeline")
+def get_order_timeline(
+    tenant_id: UUID,
+    order_id: UUID,
+    actor: Annotated[ActorContext, Depends(require_actor)],
+) -> list[OrderTimelineEventOut] | Any:
+    """Read-only order change timeline. Any org member role may read."""
+    if not actor.can_view_orders():
+        return problem(status=403, code="FORBIDDEN", title="Forbidden")
+    with UnitOfWork(user_id=actor.user_id, tenant_id=actor.tenant_id, role=actor.role.value) as uow:
+        orders = OrderRepository(uow.connection)
+        if orders.get_order(tenant_id, order_id) is None:
+            return problem(status=404, code="NOT_FOUND", title="Order not found")
+        rows = orders.list_order_timeline(tenant_id, order_id)
+    return [_timeline_event(row) for row in rows]
 
 
 @router.patch("/api/v1/tenants/{tenant_id}/orders/{order_id}")
@@ -310,7 +372,11 @@ def patch_order(
             actor_user_id=actor.user_id,
             action_type="order.draft_updated",
             entity_id=order.id,
-            payload={"expected_version": body.expected_version},
+            payload={
+                "from_status": "DRAFT",
+                "to_status": "DRAFT",
+                "expected_version": body.expected_version,
+            },
         )
         saved = orders.get_order(tenant_id, order.id)
     assert saved is not None

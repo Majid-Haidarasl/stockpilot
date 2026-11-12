@@ -270,6 +270,32 @@ class OrderRepository:
         )
         return [dict(r) for r in rows]
 
+    def list_order_timeline(self, tenant_id: UUID, order_id: UUID) -> list[dict[str, Any]]:
+        """Safe change events for one order (tenant-scoped via RLS + explicit filter)."""
+        rows = (
+            self._conn.execute(
+                text(
+                    """
+                SELECT a.id,
+                       a.action_type,
+                       a.created_at,
+                       a.payload_json,
+                       u.display_name AS actor_display_name
+                FROM platform.audit_log a
+                LEFT JOIN access.users u ON u.id = a.actor_user_id
+                WHERE a.tenant_id = :tenant_id
+                  AND a.entity_type = 'order'
+                  AND a.entity_id = :order_id
+                ORDER BY a.created_at ASC, a.id ASC
+                """
+                ),
+                {"tenant_id": str(tenant_id), "order_id": str(order_id)},
+            )
+            .mappings()
+            .all()
+        )
+        return [dict(r) for r in rows]
+
     def write_audit(
         self,
         *,

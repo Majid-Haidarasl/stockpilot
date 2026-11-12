@@ -121,7 +121,11 @@ class OrderCycleService:
             actor_user_id=actor_user_id,
             action_type="order.reserved",
             entity_id=order.id,
-            payload={"expires_at": order.expires_at.isoformat() if order.expires_at else None},
+            payload={
+                "from_status": OrderStatus.DRAFT.value,
+                "to_status": OrderStatus.RESERVED.value,
+                "expires_at": order.expires_at.isoformat() if order.expires_at else None,
+            },
         )
         enqueue(
             self._conn,
@@ -189,7 +193,10 @@ class OrderCycleService:
             actor_user_id=actor_user_id,
             action_type="order.confirmed",
             entity_id=order.id,
-            payload={},
+            payload={
+                "from_status": OrderStatus.RESERVED.value,
+                "to_status": OrderStatus.CONFIRMED.value,
+            },
         )
         enqueue(
             self._conn,
@@ -218,6 +225,7 @@ class OrderCycleService:
             return CycleResult(order=order)
 
         now = self._clock.now()
+        from_status = order.status.value
         reservation_id = self._inventory_repo.get_reservation_id_by_order(tenant_id, order.id)
         releasable = order.status in {OrderStatus.RESERVED, OrderStatus.CONFIRMED}
         if releasable and reservation_id is not None:
@@ -238,7 +246,10 @@ class OrderCycleService:
             actor_user_id=actor_user_id,
             action_type="order.cancelled",
             entity_id=order.id,
-            payload={},
+            payload={
+                "from_status": from_status,
+                "to_status": OrderStatus.CANCELLED.value,
+            },
         )
         enqueue(
             self._conn,
@@ -299,7 +310,10 @@ class OrderCycleService:
             actor_user_id=actor_user_id,
             action_type="order.shipped",
             entity_id=order.id,
-            payload={},
+            payload={
+                "from_status": OrderStatus.CONFIRMED.value,
+                "to_status": OrderStatus.SHIPPED.value,
+            },
         )
         enqueue(
             self._conn,
@@ -339,7 +353,10 @@ class OrderCycleService:
             actor_user_id=actor_user_id,
             action_type="order.expired",
             entity_id=order.id,
-            payload={},
+            payload={
+                "from_status": OrderStatus.RESERVED.value,
+                "to_status": OrderStatus.EXPIRED.value,
+            },
         )
         enqueue(
             self._conn,

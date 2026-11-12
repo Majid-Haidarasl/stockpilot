@@ -12,5 +12,10 @@ export type {
   InventoryItem,
   InventoryMovement,
   MeResponse,
+  MoneyOut,
+  Order,
+  OrderLine,
+  OrderListItem,
+  OrderTimelineEvent,
   Product,
 } from "./api/types";

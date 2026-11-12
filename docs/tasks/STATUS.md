@@ -13,7 +13,7 @@
 | T09 | Done (local) | `InventoryCommands.reserve_all`, reservations schema, concurrency + shortfall tests, `stockpilot_test` |
 | T10 | Done (local) | Order domain + draft APIs, clock/scheduler skeleton; inventory wiring deferred to T11 |
 | T11 | Done (local) | Shared UoW cycle, idempotency+Outbox writer, lock order in ADR-002, tenant-scoped expire scheduler; critical tests ×20 last-stock + Retry-After |
-| T12 | In progress (run 1/4) | Frontend foundations: OpenAPI codegen+drift, tenant Query keys, cancel-then-clear, shared RTL states, error mapper, idempotent helper, money |
+| T12 | In progress (run 2/4) | Order list/draft/detail + timeline API; stock/version/expiry UX; Vitest for conflict/stock/actions/countdown |
 
 Phase 1 verification evidence: `docs/evidence/phase-1-report.md`  
 Phase 2 verification evidence: `docs/evidence/phase-2-report.md`  

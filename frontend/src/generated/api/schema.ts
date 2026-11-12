@@ -279,6 +279,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tenants/{tenant_id}/orders/{order_id}/timeline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Order Timeline
+         * @description Read-only order change timeline. Any org member role may read.
+         */
+        get: operations["get_order_timeline_api_v1_tenants__tenant_id__orders__order_id__timeline_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tenants/{tenant_id}/products": {
         parameters: {
             query?: never;
@@ -590,6 +610,25 @@ export interface components {
             updated_at?: string | null;
             /** Version */
             version: number;
+        };
+        /**
+         * OrderTimelineEventOut
+         * @description Safe order change event for the detail timeline (no internal payloads).
+         */
+        OrderTimelineEventOut: {
+            /** Actor Display Name */
+            actor_display_name?: string | null;
+            /** Event Type */
+            event_type: string;
+            /** From Status */
+            from_status?: string | null;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** To Status */
+            to_status?: string | null;
         };
         /** PatchCustomerBody */
         PatchCustomerBody: {
@@ -1349,6 +1388,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OrderOut"] | unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_order_timeline_api_v1_tenants__tenant_id__orders__order_id__timeline_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenant_id: string;
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderTimelineEventOut"][] | unknown;
                 };
             };
             /** @description Validation Error */

@@ -59,3 +59,50 @@ export type InventoryMovement = {
   reference: string | null;
   created_at: string;
 };
+
+export type MoneyOut = {
+  amount: string;
+  currency: string;
+};
+
+export type OrderLine = {
+  id: string;
+  product_id: string;
+  product_sku: string;
+  product_title: string;
+  quantity: number;
+  unit_price: MoneyOut;
+};
+
+export type Order = {
+  id: string;
+  tenant_id: string;
+  customer_id: string;
+  status: string;
+  version: number;
+  lines: OrderLine[];
+  total: MoneyOut;
+  total_is_estimate: boolean;
+  reserved_at?: string | null;
+  expires_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+export type OrderListItem = {
+  id: string;
+  tenant_id: string;
+  customer_id: string;
+  status: string;
+  version: number;
+  created_at?: string | null;
+  expires_at?: string | null;
+};
+
+export type OrderTimelineEvent = {
+  event_type: string;
+  occurred_at: string;
+  actor_display_name?: string | null;
+  from_status?: string | null;
+  to_status?: string | null;
+};

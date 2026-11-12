@@ -591,6 +591,59 @@
         "title": "OrderOut",
         "type": "object"
       },
+      "OrderTimelineEventOut": {
+        "description": "Safe order change event for the detail timeline (no internal payloads).",
+        "properties": {
+          "actor_display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor Display Name"
+          },
+          "event_type": {
+            "title": "Event Type",
+            "type": "string"
+          },
+          "from_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Status"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "to_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To Status"
+          }
+        },
+        "required": [
+          "event_type",
+          "occurred_at"
+        ],
+        "title": "OrderTimelineEventOut",
+        "type": "object"
+      },
       "PatchCustomerBody": {
         "properties": {
           "email": {
@@ -2359,6 +2412,69 @@
           }
         },
         "summary": "Ship Order",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/api/v1/tenants/{tenant_id}/orders/{order_id}/timeline": {
+      "get": {
+        "description": "Read-only order change timeline. Any org member role may read.",
+        "operationId": "get_order_timeline_api_v1_tenants__tenant_id__orders__order_id__timeline_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenant_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "order_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Order Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "items": {
+                        "$ref": "#/components/schemas/OrderTimelineEventOut"
+                      },
+                      "type": "array"
+                    },
+                    {}
+                  ],
+                  "title": "Response Get Order Timeline Api V1 Tenants  Tenant Id  Orders  Order Id  Timeline Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Order Timeline",
         "tags": [
           "orders"
         ]

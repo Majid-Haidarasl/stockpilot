@@ -4,6 +4,9 @@ import { LoginPage } from "../features/auth/LoginPage";
 import { CustomersPage } from "../features/customers/CustomersPage";
 import { ProductsPage } from "../features/catalog/ProductsPage";
 import { InventoryPage } from "../features/inventory/InventoryPage";
+import { DraftOrderPage } from "../features/orders/DraftOrderPage";
+import { OrderDetailPage } from "../features/orders/OrderDetailPage";
+import { OrderListPage } from "../features/orders/OrderListPage";
 import { OrgPickerPage } from "../features/orgs/OrgPickerPage";
 
 function HomePage() {
@@ -50,6 +53,9 @@ export function App() {
       <Route path="/t/:tenantId/products" element={<ProductsPage />} />
       <Route path="/t/:tenantId/customers" element={<CustomersPage />} />
       <Route path="/t/:tenantId/inventory" element={<InventoryPage />} />
+      <Route path="/t/:tenantId/orders" element={<OrderListPage />} />
+      <Route path="/t/:tenantId/orders/new" element={<DraftOrderPage />} />
+      <Route path="/t/:tenantId/orders/:orderId" element={<OrderDetailPage />} />
     </Routes>
   );
 }
