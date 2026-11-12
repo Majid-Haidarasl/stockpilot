@@ -55,6 +55,8 @@ export function mapApiProblem(
         : "اطلاعات واردشده نامعتبر است.";
     case "RESERVATION_EXPIRED":
       return "مهلت رزرو به پایان رسیده است.";
+    case "LAST_ADMIN":
+      return "نمی‌توانید نقش آخرین مدیر سازمان را تغییر دهید.";
     case "IDEMPOTENCY_KEY_REUSED":
       return "این درخواست با کلید تکراری و بدنه متفاوت ارسال شده است.";
     case "IDEMPOTENCY_IN_PROGRESS":

@@ -106,3 +106,27 @@ export type OrderTimelineEvent = {
   from_status?: string | null;
   to_status?: string | null;
 };
+
+export type DashboardLowStock = {
+  product_id: string;
+  sku: string;
+  title: string;
+  available: number;
+  stock_warning_threshold: number;
+};
+
+export type Dashboard = {
+  order_counts_by_status: Record<string, number>;
+  shipped_total: MoneyOut;
+  low_stock: DashboardLowStock[];
+  range_from: string;
+  range_to: string;
+};
+
+export type Member = {
+  id: string;
+  user_id: string;
+  role: "admin" | "sales" | "warehouse" | "viewer";
+  email?: string | null;
+  display_name?: string | null;
+};

@@ -1,16 +1,8 @@
-import {
-  Box,
-  Button,
-  Container,
-  MenuItem,
-  Stack,
-  TextField,
-  Typography,
-} from "@mui/material";
+import { Alert, Box, Button, MenuItem, Stack, TextField, Typography } from "@mui/material";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { FormEvent } from "react";
 import { useEffect, useState } from "react";
-import { Link as RouterLink, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import {
   apiFetch,
   mapApiError,
@@ -20,10 +12,20 @@ import {
 } from "../../shared/api";
 import { statusFromQueryError } from "../../shared/pageStatus";
 import { queryKeys } from "../../shared/query/keys";
-import { EmptyState, ErrorState, ForbiddenState, LoadingState } from "../../shared/ui";
+import { getTenant } from "../../shared/tenant";
+import {
+  EmptyState,
+  ErrorState,
+  ForbiddenState,
+  LoadingState,
+  TenantShell,
+} from "../../shared/ui";
+import { canWriteInventory, INVENTORY_WRITE_DENIED_MESSAGE } from "./inventoryPermissions";
 
 export function InventoryPage() {
   const { tenantId = "" } = useParams();
+  const role = getTenant()?.role ?? "viewer";
+  const canWrite = canWriteInventory(role);
   const queryClient = useQueryClient();
   const [productId, setProductId] = useState("");
   const [quantity, setQuantity] = useState("");
@@ -48,7 +50,7 @@ export function InventoryPage() {
   const productsQuery = useQuery({
     queryKey: queryKeys.products(tenantId),
     queryFn: () => apiFetch<Product[]>(`/api/v1/tenants/${tenantId}/products`),
-    enabled: Boolean(tenantId),
+    enabled: Boolean(tenantId) && canWrite,
   });
 
   useEffect(() => {
@@ -60,6 +62,9 @@ export function InventoryPage() {
 
   const saveMutation = useMutation({
     mutationFn: async () => {
+      if (!canWrite) {
+        throw new Error(INVENTORY_WRITE_DENIED_MESSAGE);
+      }
       if (mode === "receipt") {
         await apiFetch(`/api/v1/tenants/${tenantId}/inventory/receipts`, {
           method: "POST",
@@ -102,22 +107,21 @@ export function InventoryPage() {
     await saveMutation.mutateAsync();
   }
 
-  const loading =
-    inventoryQuery.isPending || movementsQuery.isPending || productsQuery.isPending;
-  const firstError = inventoryQuery.error ?? movementsQuery.error ?? productsQuery.error;
+  const loading = inventoryQuery.isPending || movementsQuery.isPending;
+  const firstError = inventoryQuery.error ?? movementsQuery.error;
 
   if (loading) {
     return (
-      <Container maxWidth="md" sx={{ py: 4 }}>
+      <TenantShell title="موجودی">
         <LoadingState />
-      </Container>
+      </TenantShell>
     );
   }
 
   if (firstError) {
     const status = statusFromQueryError(firstError);
     return (
-      <Container maxWidth="md" sx={{ py: 4 }}>
+      <TenantShell title="موجودی">
         {status.kind === "forbidden" ? (
           <ForbiddenState message={status.message} />
         ) : (
@@ -126,11 +130,10 @@ export function InventoryPage() {
             onRetry={() => {
               void inventoryQuery.refetch();
               void movementsQuery.refetch();
-              void productsQuery.refetch();
             }}
           />
         )}
-      </Container>
+      </TenantShell>
     );
   }
 
@@ -139,77 +142,71 @@ export function InventoryPage() {
   const products = productsQuery.data ?? [];
 
   return (
-    <Container maxWidth="md" sx={{ py: 4 }}>
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-        <Typography variant="h5" sx={{ fontWeight: 700 }}>
-          موجودی
-        </Typography>
-        <Stack direction="row" spacing={1}>
-          <Button component={RouterLink} to={`/t/${tenantId}/products`}>
-            کالاها
-          </Button>
-          <Button component={RouterLink} to="/orgs">
-            تغییر سازمان
-          </Button>
-        </Stack>
-      </Stack>
-
+    <TenantShell title="موجودی">
       {formError ? (
         <Box sx={{ mb: 2 }}>
           <ErrorState message={formError} />
         </Box>
       ) : null}
 
-      <Box component="form" onSubmit={onSubmit} sx={{ mb: 3, display: "grid", gap: 1.5 }}>
-        <Typography variant="subtitle1">ثبت رسید / تعدیل</Typography>
-        <TextField
-          select
-          label="نوع"
-          value={mode}
-          onChange={(e) => setMode(e.target.value as "receipt" | "adjustment")}
-        >
-          <MenuItem value="receipt">رسید ورود</MenuItem>
-          <MenuItem value="adjustment">تعدیل</MenuItem>
-        </TextField>
-        <TextField
-          select
-          label="کالا"
-          value={productId}
-          onChange={(e) => setProductId(e.target.value)}
-          required
-        >
-          {products.map((product) => (
-            <MenuItem key={product.id} value={product.id}>
-              {product.title} ({product.sku})
-            </MenuItem>
-          ))}
-        </TextField>
-        <TextField
-          label={mode === "receipt" ? "تعداد (مثبت)" : "تعداد (مثبت یا منفی)"}
-          value={quantity}
-          onChange={(e) => setQuantity(e.target.value)}
-          required
-        />
-        <TextField
-          label="مرجع"
-          value={reference}
-          onChange={(e) => setReference(e.target.value)}
-          required={mode === "receipt"}
-        />
-        {mode === "adjustment" && (
+      {canWrite ? (
+        <Box component="form" onSubmit={(e) => void onSubmit(e)} sx={{ mb: 3, display: "grid", gap: 1.5 }}>
+          <Typography variant="subtitle1" component="h2">
+            ثبت رسید / تعدیل
+          </Typography>
           <TextField
-            label="دلیل (الزامی)"
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
+            select
+            label="نوع"
+            value={mode}
+            onChange={(e) => setMode(e.target.value as "receipt" | "adjustment")}
+          >
+            <MenuItem value="receipt">رسید ورود</MenuItem>
+            <MenuItem value="adjustment">تعدیل</MenuItem>
+          </TextField>
+          <TextField
+            select
+            label="کالا"
+            value={productId}
+            onChange={(e) => setProductId(e.target.value)}
+            required
+          >
+            {products.map((product) => (
+              <MenuItem key={product.id} value={product.id}>
+                {product.title} ({product.sku})
+              </MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            label={mode === "receipt" ? "تعداد (مثبت)" : "تعداد (مثبت یا منفی)"}
+            value={quantity}
+            onChange={(e) => setQuantity(e.target.value)}
             required
           />
-        )}
-        <Button type="submit" variant="contained" disabled={saveMutation.isPending || !productId}>
-          ذخیره
-        </Button>
-      </Box>
+          <TextField
+            label="مرجع"
+            value={reference}
+            onChange={(e) => setReference(e.target.value)}
+            required={mode === "receipt"}
+          />
+          {mode === "adjustment" ? (
+            <TextField
+              label="دلیل (الزامی)"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              required
+            />
+          ) : null}
+          <Button type="submit" variant="contained" disabled={saveMutation.isPending || !productId}>
+            ذخیره
+          </Button>
+        </Box>
+      ) : (
+        <Alert severity="warning" sx={{ mb: 3 }} role="status" data-testid="inventory-write-denied">
+          {INVENTORY_WRITE_DENIED_MESSAGE}
+        </Alert>
+      )}
 
-      <Typography variant="h6" sx={{ mb: 1, fontWeight: 700 }}>
+      <Typography variant="h6" component="h2" sx={{ mb: 1, fontWeight: 700 }}>
         موقعیت‌های موجودی
       </Typography>
       <Box sx={{ mb: 3 }}>
@@ -220,7 +217,7 @@ export function InventoryPage() {
             {items.map((item) => (
               <Box
                 key={`${item.product_id}-${item.warehouse_code}`}
-                sx={{ p: 2, bgcolor: "background.paper" }}
+                sx={{ p: 2, bgcolor: "background.paper", borderRadius: 1 }}
               >
                 <Typography sx={{ fontWeight: 600 }}>
                   {item.title}{" "}
@@ -238,7 +235,7 @@ export function InventoryPage() {
         )}
       </Box>
 
-      <Typography variant="h6" sx={{ mb: 1, fontWeight: 700 }}>
+      <Typography variant="h6" component="h2" sx={{ mb: 1, fontWeight: 700 }}>
         دفتر حرکت موجودی
       </Typography>
       {movements.length === 0 ? (
@@ -246,7 +243,7 @@ export function InventoryPage() {
       ) : (
         <Stack spacing={1}>
           {movements.map((movement) => (
-            <Box key={movement.id} sx={{ p: 2, bgcolor: "background.paper" }}>
+            <Box key={movement.id} sx={{ p: 2, bgcolor: "background.paper", borderRadius: 1 }}>
               <Typography sx={{ fontWeight: 600 }}>
                 {movement.title} ({movement.sku})
               </Typography>
@@ -258,6 +255,6 @@ export function InventoryPage() {
           ))}
         </Stack>
       )}
-    </Container>
+    </TenantShell>
   );
 }

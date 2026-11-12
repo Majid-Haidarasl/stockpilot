@@ -97,7 +97,7 @@ export function OrgPickerPage() {
                     name: org.name,
                     role: org.role,
                   });
-                  navigate(`/t/${org.tenant_id}/orders`);
+                  navigate(`/t/${org.tenant_id}/dashboard`);
                 }}
               >
                 <ListItemText primary={org.name} secondary={`${org.slug} · ${org.role}`} />

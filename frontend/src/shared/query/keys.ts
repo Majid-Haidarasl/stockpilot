@@ -13,6 +13,9 @@ export const queryKeys = {
     ["tenant", tenantId, "orders", "detail", orderId] as const,
   orderTimeline: (tenantId: string, orderId: string) =>
     ["tenant", tenantId, "orders", "timeline", orderId] as const,
+  dashboard: (tenantId: string, from: string, to: string) =>
+    ["tenant", tenantId, "dashboard", from, to] as const,
+  members: (tenantId: string) => ["tenant", tenantId, "members"] as const,
 };
 
 export function assertTenantInKey(key: readonly unknown[], tenantId: string): boolean {

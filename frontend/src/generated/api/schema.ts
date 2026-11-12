@@ -73,6 +73,23 @@ export interface paths {
         patch: operations["patch_customer_api_v1_tenants__tenant_id__customers__customer_id__patch"];
         trace?: never;
     };
+    "/api/v1/tenants/{tenant_id}/dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Dashboard */
+        get: operations["get_dashboard_api_v1_tenants__tenant_id__dashboard_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tenants/{tenant_id}/inventory": {
         parameters: {
             query?: never;
@@ -487,6 +504,29 @@ export interface components {
             /** Expected Version */
             expected_version: number;
         };
+        /** DashboardOut */
+        DashboardOut: {
+            /** Low Stock */
+            low_stock: components["schemas"]["LowStockItemOut"][];
+            /**
+             * Order Counts By Status
+             * @description Counts for each order status in the tenant
+             */
+            order_counts_by_status: {
+                [key: string]: number;
+            };
+            /**
+             * Range From
+             * Format: date-time
+             */
+            range_from: string;
+            /**
+             * Range To
+             * Format: date-time
+             */
+            range_to: string;
+            shipped_total: components["schemas"]["MoneyOut"];
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -512,6 +552,19 @@ export interface components {
             version: number;
             /** Warehouse Code */
             warehouse_code: string;
+        };
+        /** LowStockItemOut */
+        LowStockItemOut: {
+            /** Available */
+            available: number;
+            /** Product Id */
+            product_id: string;
+            /** Sku */
+            sku: string;
+            /** Stock Warning Threshold */
+            stock_warning_threshold: number;
+            /** Title */
+            title: string;
         };
         /** MoneyOut */
         MoneyOut: {
@@ -875,6 +928,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CustomerOut"] | unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_dashboard_api_v1_tenants__tenant_id__dashboard_get: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+            };
+            header?: never;
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DashboardOut"] | unknown;
                 };
             };
             /** @description Validation Error */

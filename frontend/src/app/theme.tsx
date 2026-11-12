@@ -21,6 +21,26 @@ const theme = createTheme({
     secondary: { main: "#e36414" },
     background: { default: "#f4f7f8", paper: "#ffffff" },
   },
+  components: {
+    MuiCssBaseline: {
+      styleOverrides: {
+        "*:focus-visible": {
+          outline: "3px solid #0f4c5c",
+          outlineOffset: "2px",
+        },
+      },
+    },
+    MuiButtonBase: {
+      styleOverrides: {
+        root: {
+          "&.Mui-focusVisible": {
+            outline: "3px solid #0f4c5c",
+            outlineOffset: "2px",
+          },
+        },
+      },
+    },
+  },
 });
 
 export function AppThemeProvider({ children }: { children: ReactNode }) {

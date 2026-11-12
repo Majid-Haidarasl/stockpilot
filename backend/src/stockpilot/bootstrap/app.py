@@ -11,6 +11,7 @@ from stockpilot.modules.access.adapters.inbound.member_routes import router as m
 from stockpilot.modules.catalog.adapters.inbound.routes import router as catalog_router
 from stockpilot.modules.inventory.adapters.inbound.routes import router as inventory_router
 from stockpilot.modules.sales.adapters.inbound.customer_routes import router as customer_router
+from stockpilot.modules.sales.adapters.inbound.dashboard_routes import router as dashboard_router
 from stockpilot.modules.sales.adapters.inbound.order_routes import router as order_router
 from stockpilot.platform.settings import get_settings
 
@@ -32,6 +33,7 @@ def create_app() -> FastAPI:
     app.include_router(catalog_router)
     app.include_router(customer_router)
     app.include_router(order_router)
+    app.include_router(dashboard_router)
     app.include_router(inventory_router)
     return app
 

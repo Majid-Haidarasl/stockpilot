@@ -234,6 +234,47 @@
         "title": "CycleBody",
         "type": "object"
       },
+      "DashboardOut": {
+        "properties": {
+          "low_stock": {
+            "items": {
+              "$ref": "#/components/schemas/LowStockItemOut"
+            },
+            "title": "Low Stock",
+            "type": "array"
+          },
+          "order_counts_by_status": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "Counts for each order status in the tenant",
+            "title": "Order Counts By Status",
+            "type": "object"
+          },
+          "range_from": {
+            "format": "date-time",
+            "title": "Range From",
+            "type": "string"
+          },
+          "range_to": {
+            "format": "date-time",
+            "title": "Range To",
+            "type": "string"
+          },
+          "shipped_total": {
+            "$ref": "#/components/schemas/MoneyOut"
+          }
+        },
+        "required": [
+          "order_counts_by_status",
+          "shipped_total",
+          "low_stock",
+          "range_from",
+          "range_to"
+        ],
+        "title": "DashboardOut",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -298,6 +339,39 @@
           "version"
         ],
         "title": "InventoryItemOut",
+        "type": "object"
+      },
+      "LowStockItemOut": {
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "integer"
+          },
+          "product_id": {
+            "title": "Product Id",
+            "type": "string"
+          },
+          "sku": {
+            "title": "Sku",
+            "type": "string"
+          },
+          "stock_warning_threshold": {
+            "title": "Stock Warning Threshold",
+            "type": "integer"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "product_id",
+          "sku",
+          "title",
+          "available",
+          "stock_warning_threshold"
+        ],
+        "title": "LowStockItemOut",
         "type": "object"
       },
       "MoneyOut": {
@@ -1237,6 +1311,75 @@
         "summary": "Patch Customer",
         "tags": [
           "customers"
+        ]
+      }
+    },
+    "/api/v1/tenants/{tenant_id}/dashboard": {
+      "get": {
+        "operationId": "get_dashboard_api_v1_tenants__tenant_id__dashboard_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenant_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "title": "From",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "title": "To",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/DashboardOut"
+                    },
+                    {}
+                  ],
+                  "title": "Response Get Dashboard Api V1 Tenants  Tenant Id  Dashboard Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Dashboard",
+        "tags": [
+          "dashboard"
         ]
       }
     },

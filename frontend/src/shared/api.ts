@@ -9,9 +9,12 @@ export {
 } from "./api/problem";
 export type {
   Customer,
+  Dashboard,
+  DashboardLowStock,
   InventoryItem,
   InventoryMovement,
   MeResponse,
+  Member,
   MoneyOut,
   Order,
   OrderLine,
