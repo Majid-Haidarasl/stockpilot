@@ -150,6 +150,9 @@ backup-data/
 # Tests / e2e / load artifacts
 # =========================
 test-results/
+tests/e2e/test-results/
+tests/e2e/playwright-report/
+tests/e2e/node_modules/
 playwright-report/
 playwright/.cache/
 blob-report/

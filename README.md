@@ -55,6 +55,17 @@ docker compose -f compose.yaml -f compose.dev.yaml --profile test run --rm backe
 docker compose -f compose.yaml -f compose.dev.yaml --profile test run --rm frontend-checks
 ```
 
+## End-to-end (Playwright)
+
+Runs in an isolated Compose project (`-p stockpilot-e2e`) so the normal dev stack on ports `8200` / `8180` / `5173` is untouched. Do **not** include `compose.dev.yaml` (no host port publishing). Uses `stockpilot_test` + `seed-e2e` (not `seed-demo`). Browser traffic goes through the in-network `edge-e2e` reverse proxy (single origin for session cookies).
+
+```powershell
+docker compose -p stockpilot-e2e -f compose.yaml -f compose.e2e.yaml --profile test build
+docker compose -p stockpilot-e2e -f compose.yaml -f compose.e2e.yaml --profile test run --rm e2e
+```
+
+Traces and screenshots on failure are written under `tests/e2e/test-results/` (gitignored).
+
 ## Docs
 
 - Product language / roles / order lifecycle: `docs/product/`

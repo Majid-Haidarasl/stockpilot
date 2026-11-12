@@ -12,19 +12,26 @@ describe("tenant query cache", () => {
     expect(assertTenantInKey(queryKeys.inventoryMovements(tenantId), tenantId)).toBe(true);
   });
 
-  it("cancels in-flight queries before clearing on org switch", async () => {
+  it("cancels tenant-scoped queries before removing them; preserves me", async () => {
     const queryClient = new QueryClient();
-    const cancelQueries = vi.spyOn(queryClient, "cancelQueries").mockResolvedValue(undefined);
-    const clear = vi.spyOn(queryClient, "clear");
+    const cancelQueries = vi.spyOn(queryClient, "cancelQueries");
+    const removeQueries = vi.spyOn(queryClient, "removeQueries");
 
     queryClient.setQueryData(queryKeys.products("tenant-a"), [{ id: "1" }]);
+    queryClient.setQueryData(queryKeys.me(), { user: { id: "u1" }, organizations: [] });
     expect(queryClient.getQueryData(queryKeys.products("tenant-a"))).toBeTruthy();
 
     await clearTenantSensitiveCache(queryClient);
 
     expect(cancelQueries).toHaveBeenCalledTimes(1);
-    expect(clear).toHaveBeenCalledTimes(1);
-    expect(cancelQueries.mock.invocationCallOrder[0]).toBeLessThan(clear.mock.invocationCallOrder[0]!);
+    expect(removeQueries).toHaveBeenCalledTimes(1);
+    expect(cancelQueries.mock.invocationCallOrder[0]).toBeLessThan(
+      removeQueries.mock.invocationCallOrder[0]!,
+    );
     expect(queryClient.getQueryData(queryKeys.products("tenant-a"))).toBeUndefined();
+    expect(queryClient.getQueryData(queryKeys.me())).toEqual({
+      user: { id: "u1" },
+      organizations: [],
+    });
   });
 });

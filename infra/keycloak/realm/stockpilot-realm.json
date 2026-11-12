@@ -21,18 +21,20 @@
       "secret": "stockpilot-dev-client-secret-change-me",
       "redirectUris": [
         "http://localhost:8200/auth/callback",
-        "http://localhost:8000/auth/callback"
+        "http://localhost:8000/auth/callback",
+        "http://edge-e2e/auth/callback"
       ],
       "webOrigins": [
         "http://localhost:5173",
         "http://localhost:8200",
-        "http://localhost:8000"
+        "http://localhost:8000",
+        "http://edge-e2e"
       ],
       "standardFlowEnabled": true,
       "directAccessGrantsEnabled": false,
       "attributes": {
         "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "http://localhost:5173/*##http://localhost:5173"
+        "post.logout.redirect.uris": "http://localhost:5173/*##http://localhost:5173##http://edge-e2e/*##http://edge-e2e"
       },
       "protocol": "openid-connect"
     }

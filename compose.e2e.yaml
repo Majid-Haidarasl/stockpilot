@@ -1,0 +1,136 @@
+# E2E overlay: use with an isolated project name and WITHOUT compose.dev.yaml
+# so host ports 8200/8180/5173 stay free for the normal stockpilot stack.
+#
+#   docker compose -p stockpilot-e2e -f compose.yaml -f compose.e2e.yaml --profile test run --rm e2e
+#
+# Browser traffic goes through edge-e2e (single origin) so session cookies work.
+
+services:
+  keycloak:
+    environment:
+      KC_HOSTNAME: keycloak
+      KC_HOSTNAME_PORT: "8080"
+      KC_HOSTNAME_STRICT: "false"
+      KC_HOSTNAME_STRICT_HTTPS: "false"
+
+  migrate:
+    environment:
+      STOCKPILOT_MIGRATION_DATABASE_URL: postgresql+psycopg://stockpilot_migrator:${STOCKPILOT_MIGRATOR_PASSWORD:-migrator_dev_change_me}@postgres:5432/stockpilot_test
+    depends_on:
+      e2e-ensure-db:
+        condition: service_completed_successfully
+
+  ops:
+    environment:
+      STOCKPILOT_MIGRATION_DATABASE_URL: postgresql+psycopg://stockpilot_migrator:${STOCKPILOT_MIGRATOR_PASSWORD:-migrator_dev_change_me}@postgres:5432/stockpilot_test
+      STOCKPILOT_OIDC_ISSUER: http://keycloak:8080/realms/stockpilot
+      STOCKPILOT_ENVIRONMENT: test
+
+  api:
+    environment:
+      STOCKPILOT_DATABASE_URL: postgresql+psycopg://stockpilot_app:${STOCKPILOT_APP_PASSWORD:-app_dev_change_me}@postgres:5432/stockpilot_test
+      STOCKPILOT_ENVIRONMENT: test
+      STOCKPILOT_OIDC_ISSUER: http://keycloak:8080/realms/stockpilot
+      STOCKPILOT_OIDC_METADATA_URL: http://keycloak:8080/realms/stockpilot/.well-known/openid-configuration
+      STOCKPILOT_OIDC_REDIRECT_URI: http://edge-e2e/auth/callback
+      STOCKPILOT_OIDC_ALLOWED_REDIRECT_URIS: http://edge-e2e/auth/callback
+      STOCKPILOT_COOKIE_SECURE: "false"
+      STOCKPILOT_CORS_ORIGINS: http://edge-e2e
+      STOCKPILOT_FRONTEND_DEFAULT_URL: http://edge-e2e
+      STOCKPILOT_APP_PUBLIC_ORIGIN: http://edge-e2e
+    depends_on:
+      e2e-seed:
+        condition: service_completed_successfully
+
+  frontend-dev:
+    environment:
+      VITE_API_BASE_URL: http://edge-e2e
+      CHOKIDAR_USEPOLLING: "true"
+
+  edge-e2e:
+    profiles: ["test"]
+    image: caddy:2.9-alpine
+    volumes:
+      - ./infra/caddy/e2e.Caddyfile:/etc/caddy/Caddyfile:ro
+    depends_on:
+      api:
+        condition: service_healthy
+      frontend-dev:
+        condition: service_started
+    networks:
+      - stockpilot
+    restart: unless-stopped
+
+  e2e-ensure-db:
+    profiles: ["test"]
+    build:
+      context: ./backend
+      target: runtime
+    environment:
+      STOCKPILOT_TEST_ADMIN_DATABASE_URL: postgresql+psycopg://${POSTGRES_SUPERUSER:-postgres}:${POSTGRES_SUPERUSER_PASSWORD:-postgres}@postgres:5432/postgres
+      STOCKPILOT_TEST_DATABASE_NAME: stockpilot_test
+    command: ["python", "-m", "stockpilot.bootstrap.ensure_test_db"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - stockpilot
+    restart: "no"
+
+  e2e-seed:
+    profiles: ["test"]
+    build:
+      context: ./backend
+      target: runtime
+    environment:
+      STOCKPILOT_MIGRATION_DATABASE_URL: postgresql+psycopg://stockpilot_migrator:${STOCKPILOT_MIGRATOR_PASSWORD:-migrator_dev_change_me}@postgres:5432/stockpilot_test
+      STOCKPILOT_OIDC_ISSUER: http://keycloak:8080/realms/stockpilot
+      STOCKPILOT_ENVIRONMENT: test
+    command:
+      [
+        "bash",
+        "-c",
+        "python -m stockpilot.bootstrap.ops bootstrap --environment test && python -m stockpilot.bootstrap.ops seed-e2e --environment test",
+      ]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      keycloak:
+        condition: service_healthy
+    networks:
+      - stockpilot
+    restart: "no"
+
+  e2e:
+    profiles: ["test"]
+    image: mcr.microsoft.com/playwright:v1.50.1-jammy
+    working_dir: /e2e
+    volumes:
+      - ./tests/e2e:/e2e
+    environment:
+      BASE_URL: http://edge-e2e
+      API_BASE_URL: http://edge-e2e
+      E2E_PASSWORD: Passw0rd!
+      STOCKPILOT_MIGRATION_DATABASE_URL: postgresql+psycopg://stockpilot_migrator:${STOCKPILOT_MIGRATOR_PASSWORD:-migrator_dev_change_me}@postgres:5432/stockpilot_test
+      STOCKPILOT_ENVIRONMENT: test
+      STOCKPILOT_OIDC_ISSUER: http://keycloak:8080/realms/stockpilot
+    command:
+      [
+        "bash",
+        "-c",
+        "npm install && for i in $(seq 1 60); do curl -sf http://edge-e2e/login >/dev/null && break; sleep 2; done && npx playwright test --reporter=list",
+      ]
+
+
+    depends_on:
+      edge-e2e:
+        condition: service_started
+      api:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+      e2e-seed:
+        condition: service_completed_successfully
+    networks:
+      - stockpilot
+    restart: "no"

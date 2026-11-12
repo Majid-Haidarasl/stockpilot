@@ -20,8 +20,15 @@ from stockpilot.modules.access.domain.models import Role
 from stockpilot.modules.catalog.adapters.outbound.repo import CatalogRepository
 from stockpilot.modules.inventory.adapters.outbound.repo import InventoryRepository
 from stockpilot.modules.inventory.domain.models import DEFAULT_WAREHOUSE
+from stockpilot.modules.sales.adapters.outbound.customer_repo import CustomerRepository
 from stockpilot.platform.persistence.uow import UnitOfWork
 from stockpilot.platform.settings import get_settings
+
+# Idempotent e2e fixtures (not seed-demo).
+_E2E_SKU = "E2E-SKU-1"
+_E2E_CUSTOMER_NAME = "E2E Customer"
+_E2E_UNIT_PRICE = 125000
+_E2E_STOCK_QTY = 50
 
 DEMO_ORGS = (
     {"slug": "aftab", "name": "Aftab"},
@@ -37,6 +44,7 @@ DEMO_LINKS = (
 )
 
 _PROD_ENVIRONMENTS = frozenset({"production", "prod", "staging"})
+_DEV_OR_TEST_ENVIRONMENTS = frozenset({"development", "dev", "test"})
 
 
 def _migration_engine() -> Engine:
@@ -52,6 +60,17 @@ def _assert_dev_only(environment: str, *, command: str) -> None:
     if env in _PROD_ENVIRONMENTS or settings_env in _PROD_ENVIRONMENTS:
         raise SystemExit(
             f"{command} is development-only and refuses production/staging environments"
+        )
+
+
+def _assert_dev_or_test(environment: str, *, command: str) -> None:
+    """Allow only development/test (stricter allow-list used by e2e ops)."""
+    env = environment.strip().lower()
+    settings_env = get_settings().environment.strip().lower()
+    if env not in _DEV_OR_TEST_ENVIRONMENTS or settings_env not in _DEV_OR_TEST_ENVIRONMENTS:
+        raise SystemExit(
+            f"{command} only allowed when --environment and STOCKPILOT_ENVIRONMENT "
+            "are development or test"
         )
 
 
@@ -252,6 +271,114 @@ def cmd_balance_check(tenant_slug: str | None) -> None:
             raise SystemExit(1)
 
 
+def cmd_seed_e2e(environment: str) -> None:
+    """Minimal idempotent fixtures for Playwright (aftab/baran only; not seed-demo)."""
+    _assert_dev_or_test(environment, command="seed-e2e")
+    settings = get_settings()
+    engine = _migration_engine()
+    issuer = settings.oidc_issuer
+
+    with UnitOfWork(engine=engine) as uow:
+        access = AccessRepository(uow.connection)
+        catalog = CatalogRepository(uow.connection)
+        customers = CustomerRepository(uow.connection)
+        inventory = InventoryRepository(uow.connection)
+
+        tenant_ids: dict[str, UUID] = {}
+        for org in DEMO_ORGS:
+            tenant_ids[org["slug"]] = access.ensure_tenant(slug=org["slug"], name=org["name"])
+
+        # Dual-org membership for org-switch e2e: sales@aftab also viewer on baran.
+        sales_subject = (
+            os.environ.get("STOCKPILOT_SUBJECT_AFTAB_SALES") or "bootstrap:sales@aftab.test"
+        )
+        sales_user_id = access.upsert_user(
+            issuer=issuer,
+            subject=sales_subject,
+            email="sales@aftab.test",
+            display_name="sales",
+        )
+        access.ensure_membership(
+            tenant_id=tenant_ids["aftab"],
+            user_id=sales_user_id,
+            role=Role.SALES,
+        )
+        access.ensure_membership(
+            tenant_id=tenant_ids["baran"],
+            user_id=sales_user_id,
+            role=Role.VIEWER,
+        )
+
+        for slug in ("aftab", "baran"):
+            tenant_id = tenant_ids[slug]
+            product = catalog.get_product_by_sku(tenant_id, _E2E_SKU)
+            if product is None:
+                product = catalog.create_product(
+                    tenant_id=tenant_id,
+                    sku=_E2E_SKU,
+                    title=f"E2E Product ({slug})",
+                    unit_price_rial=_E2E_UNIT_PRICE,
+                    is_active=True,
+                    stock_warning_threshold=5,
+                )
+            product_id = UUID(str(product["id"]))
+
+            existing_customers = customers.list_customers(tenant_id)
+            customer = next(
+                (c for c in existing_customers if c.get("name") == _E2E_CUSTOMER_NAME),
+                None,
+            )
+            if customer is None:
+                customers.create_customer(
+                    tenant_id=tenant_id,
+                    name=_E2E_CUSTOMER_NAME,
+                    phone=None,
+                    email=f"e2e-customer@{slug}.test",
+                    notes="seed-e2e",
+                )
+
+            reference = f"seed-e2e:{slug}:{_E2E_SKU}"
+            if not inventory.movement_exists(tenant_id, reference):
+                position = inventory.ensure_position_for_update(
+                    tenant_id=tenant_id, product_id=product_id
+                )
+                position.apply_receipt(_E2E_STOCK_QTY)
+                inventory.save_position(position)
+                inventory.insert_movement(
+                    tenant_id=tenant_id,
+                    product_id=product_id,
+                    physical_delta=_E2E_STOCK_QTY,
+                    reserved_delta=0,
+                    reason="seed-e2e receipt",
+                    reference=reference,
+                    actor_user_id=None,
+                )
+
+    print("seed-e2e complete", flush=True)
+
+
+def cmd_e2e_backdate_reservation(environment: str, order_id: str) -> None:
+    """Set reservation expires_at in the past (dev/test only; no public expire API)."""
+    _assert_dev_or_test(environment, command="e2e-backdate-reservation")
+    engine = _migration_engine()
+    with UnitOfWork(engine=engine) as uow:
+        result = uow.connection.execute(
+            text(
+                """
+                UPDATE sales.orders
+                SET expires_at = now() - interval '1 minute',
+                    updated_at = now()
+                WHERE id = :id AND status = 'RESERVED'
+                RETURNING id
+                """
+            ),
+            {"id": order_id},
+        ).first()
+        if result is None:
+            raise SystemExit(f"e2e-backdate-reservation: no RESERVED order found for id={order_id}")
+    print(f"e2e-backdate-reservation complete order_id={order_id}", flush=True)
+
+
 def cmd_cleanup_test_tenants(environment: str) -> None:
     """Remove leftover integration-test tenants (inv-*, rsv-*) from the demo DB."""
     _assert_dev_only(environment, command="cleanup-test-tenants")
@@ -309,6 +436,19 @@ def main(argv: list[str] | None = None) -> None:
     )
     cleanup.add_argument("--environment", default="development")
 
+    seed_e2e = sub.add_parser(
+        "seed-e2e",
+        help="Dev/test-only: minimal idempotent fixtures for Playwright e2e",
+    )
+    seed_e2e.add_argument("--environment", default="development")
+
+    backdate = sub.add_parser(
+        "e2e-backdate-reservation",
+        help="Dev/test-only: set RESERVED order expires_at in the past",
+    )
+    backdate.add_argument("--environment", default="development")
+    backdate.add_argument("--order-id", required=True)
+
     balance = sub.add_parser("balance-check", help="Report stock ledger vs counter mismatches")
     balance.add_argument("--tenant-slug", default=None)
 
@@ -317,6 +457,10 @@ def main(argv: list[str] | None = None) -> None:
         cmd_bootstrap(args.environment)
     elif args.command == "seed-demo":
         cmd_seed_demo(args.environment, Path(args.sample_path))
+    elif args.command == "seed-e2e":
+        cmd_seed_e2e(args.environment)
+    elif args.command == "e2e-backdate-reservation":
+        cmd_e2e_backdate_reservation(args.environment, args.order_id)
     elif args.command == "cleanup-test-tenants":
         cmd_cleanup_test_tenants(args.environment)
     elif args.command == "balance-check":
