@@ -1,62 +1,30 @@
-import {
-  Alert,
-  Box,
-  Button,
-  CircularProgress,
-  Container,
-  Stack,
-  TextField,
-  Typography,
-} from "@mui/material";
-import { useEffect, useState } from "react";
+import { Box, Button, Container, Stack, TextField, Typography } from "@mui/material";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { FormEvent } from "react";
+import { useState } from "react";
 import { Link as RouterLink, useParams } from "react-router-dom";
-import { apiFetch, type Product } from "../../shared/api";
+import { apiFetch, mapApiError, type Product } from "../../shared/api";
+import { formatRial } from "../../shared/money";
+import { statusFromQueryError } from "../../shared/pageStatus";
+import { queryKeys } from "../../shared/query/keys";
+import { EmptyState, ErrorState, ForbiddenState, LoadingState } from "../../shared/ui";
 
 export function ProductsPage() {
   const { tenantId = "" } = useParams();
-  const [items, setItems] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
   const [sku, setSku] = useState("");
   const [title, setTitle] = useState("");
   const [price, setPrice] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [reloadToken, setReloadToken] = useState(0);
+  const [formError, setFormError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
+  const productsQuery = useQuery({
+    queryKey: queryKeys.products(tenantId),
+    queryFn: () => apiFetch<Product[]>(`/api/v1/tenants/${tenantId}/products`),
+    enabled: Boolean(tenantId),
+  });
 
-    async function load() {
-      setLoading(true);
-      setError(null);
-      try {
-        const data = await apiFetch<Product[]>(`/api/v1/tenants/${tenantId}/products`);
-        if (!cancelled) {
-          setItems(data);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : "خطا");
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    }
-
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [tenantId, reloadToken]);
-
-  async function onCreate(event: FormEvent) {
-    event.preventDefault();
-    setSaving(true);
-    setError(null);
-    try {
+  const createMutation = useMutation({
+    mutationFn: async () => {
       await apiFetch(`/api/v1/tenants/${tenantId}/products`, {
         method: "POST",
         body: JSON.stringify({
@@ -66,16 +34,47 @@ export function ProductsPage() {
           is_active: true,
         }),
       });
+    },
+    onSuccess: async () => {
       setSku("");
       setTitle("");
       setPrice("");
-      setReloadToken((value) => value + 1);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "خطا در ایجاد کالا");
-    } finally {
-      setSaving(false);
-    }
+      setFormError(null);
+      await queryClient.invalidateQueries({ queryKey: queryKeys.products(tenantId) });
+    },
+    onError: (err) => {
+      setFormError(mapApiError(err));
+    },
+  });
+
+  async function onCreate(event: FormEvent) {
+    event.preventDefault();
+    setFormError(null);
+    await createMutation.mutateAsync();
   }
+
+  if (productsQuery.isPending) {
+    return (
+      <Container maxWidth="md" sx={{ py: 4 }}>
+        <LoadingState />
+      </Container>
+    );
+  }
+
+  if (productsQuery.isError) {
+    const status = statusFromQueryError(productsQuery.error);
+    return (
+      <Container maxWidth="md" sx={{ py: 4 }}>
+        {status.kind === "forbidden" ? (
+          <ForbiddenState message={status.message} />
+        ) : (
+          <ErrorState message={status.message} onRetry={() => void productsQuery.refetch()} />
+        )}
+      </Container>
+    );
+  }
+
+  const items = productsQuery.data ?? [];
 
   return (
     <Container maxWidth="md" sx={{ py: 4 }}>
@@ -96,11 +95,7 @@ export function ProductsPage() {
         </Stack>
       </Stack>
 
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-      )}
+      {formError ? <ErrorState message={formError} /> : null}
 
       <Box component="form" onSubmit={onCreate} sx={{ mb: 3, display: "grid", gap: 1.5 }}>
         <Typography variant="subtitle1">ایجاد کالای جدید</Typography>
@@ -113,15 +108,13 @@ export function ProductsPage() {
           required
           helperText="عدد صحیح به‌صورت رشته؛ بدون اعشار"
         />
-        <Button type="submit" variant="contained" disabled={saving}>
+        <Button type="submit" variant="contained" disabled={createMutation.isPending}>
           ذخیره
         </Button>
       </Box>
 
-      {loading ? (
-        <CircularProgress />
-      ) : items.length === 0 ? (
-        <Alert severity="info">کالایی ثبت نشده است.</Alert>
+      {items.length === 0 ? (
+        <EmptyState message="کالایی ثبت نشده است." />
       ) : (
         <Stack spacing={1}>
           {items.map((item) => (
@@ -133,7 +126,7 @@ export function ProductsPage() {
                 </Box>
               </Typography>
               <Typography color="text.secondary">
-                قیمت: {item.unit_price.amount} ریال · نسخه {item.version}
+                قیمت: {formatRial(item.unit_price.amount)} · نسخه {item.version}
                 {item.is_active ? "" : " · غیرفعال"}
               </Typography>
             </Box>

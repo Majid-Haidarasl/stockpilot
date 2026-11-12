@@ -1,70 +1,91 @@
 import {
-  Alert,
   Box,
   Button,
-  CircularProgress,
   Container,
   List,
   ListItemButton,
   ListItemText,
   Paper,
+  Stack,
   Typography,
 } from "@mui/material";
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { apiFetch, loginUrl, type MeResponse } from "../../shared/api";
-import { clearTenant, setTenant } from "../../shared/tenant";
+import { useLogout } from "../../shared/auth/useLogout";
+import { statusFromQueryError } from "../../shared/pageStatus";
+import { queryKeys } from "../../shared/query/keys";
+import { useClearTenantCacheOnOrgSwitch } from "../../shared/query/useClearTenantCacheOnOrgSwitch";
+import { setTenant } from "../../shared/tenant";
+import { EmptyState, ErrorState, ForbiddenState, LoadingState } from "../../shared/ui";
 
 export function OrgPickerPage() {
   const navigate = useNavigate();
-  const [me, setMe] = useState<MeResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  useClearTenantCacheOnOrgSwitch();
+  const { logout, pending: logoutPending, error: logoutError } = useLogout();
 
-  useEffect(() => {
-    clearTenant();
-    apiFetch<MeResponse>("/api/v1/me")
-      .then(setMe)
-      .catch((err: Error) => {
-        setError(err.message);
-      })
-      .finally(() => setLoading(false));
-  }, []);
+  const meQuery = useQuery({
+    queryKey: queryKeys.me(),
+    queryFn: () => apiFetch<MeResponse>("/api/v1/me"),
+  });
 
-  if (loading) {
+  if (meQuery.isPending) {
     return (
       <Box sx={{ minHeight: "100vh", display: "grid", placeItems: "center" }}>
-        <CircularProgress />
+        <LoadingState />
       </Box>
     );
   }
 
-  if (error || !me) {
+  if (meQuery.isError) {
+    const status = statusFromQueryError(meQuery.error);
     return (
       <Container maxWidth="sm" sx={{ mt: 8 }}>
-        <Alert severity="warning" sx={{ mb: 2 }}>
-          {error ?? "نشست معتبر نیست"}
-        </Alert>
-        <Button variant="contained" onClick={() => (window.location.href = loginUrl())}>
+        {status.kind === "forbidden" ? (
+          <ForbiddenState message={status.message} />
+        ) : (
+          <ErrorState message={status.message} />
+        )}
+        <Button
+          variant="contained"
+          sx={{ mt: 2 }}
+          onClick={() => {
+            window.location.href = loginUrl();
+          }}
+        >
           ورود دوباره
         </Button>
       </Container>
     );
   }
 
+  const me = meQuery.data;
+
   return (
     <Container maxWidth="sm" sx={{ mt: 8 }}>
       <Paper sx={{ p: 3 }}>
-        <Typography variant="h5" sx={{ fontWeight: 700, mb: 1 }}>
-          انتخاب سازمان
-        </Typography>
-        <Typography color="text.secondary" sx={{ mb: 2 }}>
-          {me.user.display_name ?? me.user.email ?? me.user.id}
-        </Typography>
+        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ mb: 2 }}>
+          <Box>
+            <Typography variant="h5" sx={{ fontWeight: 700, mb: 1 }}>
+              انتخاب سازمان
+            </Typography>
+            <Typography color="text.secondary">
+              {me.user.display_name ?? me.user.email ?? me.user.id}
+            </Typography>
+          </Box>
+          <Button variant="outlined" disabled={logoutPending} onClick={() => void logout()}>
+            خروج
+          </Button>
+        </Stack>
+
+        {logoutError ? (
+          <Box sx={{ mb: 2 }}>
+            <ErrorState message={logoutError} />
+          </Box>
+        ) : null}
+
         {me.organizations.length === 0 ? (
-          <Alert severity="info">
-            هنوز عضویت سازمانی ندارید. از ابزار ops bootstrap استفاده کنید.
-          </Alert>
+          <EmptyState message="هنوز عضویت سازمانی ندارید. از ابزار ops bootstrap استفاده کنید." />
         ) : (
           <List>
             {me.organizations.map((org) => (

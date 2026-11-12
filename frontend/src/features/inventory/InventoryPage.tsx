@@ -1,81 +1,65 @@
 import {
-  Alert,
   Box,
   Button,
-  CircularProgress,
   Container,
   MenuItem,
   Stack,
   TextField,
   Typography,
 } from "@mui/material";
-import { useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { FormEvent } from "react";
+import { useEffect, useState } from "react";
 import { Link as RouterLink, useParams } from "react-router-dom";
 import {
   apiFetch,
+  mapApiError,
   type InventoryItem,
   type InventoryMovement,
   type Product,
 } from "../../shared/api";
+import { statusFromQueryError } from "../../shared/pageStatus";
+import { queryKeys } from "../../shared/query/keys";
+import { EmptyState, ErrorState, ForbiddenState, LoadingState } from "../../shared/ui";
 
 export function InventoryPage() {
   const { tenantId = "" } = useParams();
-  const [items, setItems] = useState<InventoryItem[]>([]);
-  const [movements, setMovements] = useState<InventoryMovement[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
   const [productId, setProductId] = useState("");
   const [quantity, setQuantity] = useState("");
   const [reference, setReference] = useState("");
   const [reason, setReason] = useState("");
   const [mode, setMode] = useState<"receipt" | "adjustment">("receipt");
-  const [saving, setSaving] = useState(false);
-  const [reloadToken, setReloadToken] = useState(0);
+  const [formError, setFormError] = useState<string | null>(null);
+
+  const inventoryQuery = useQuery({
+    queryKey: queryKeys.inventory(tenantId),
+    queryFn: () => apiFetch<InventoryItem[]>(`/api/v1/tenants/${tenantId}/inventory`),
+    enabled: Boolean(tenantId),
+  });
+
+  const movementsQuery = useQuery({
+    queryKey: queryKeys.inventoryMovements(tenantId),
+    queryFn: () =>
+      apiFetch<InventoryMovement[]>(`/api/v1/tenants/${tenantId}/inventory/movements?limit=50`),
+    enabled: Boolean(tenantId),
+  });
+
+  const productsQuery = useQuery({
+    queryKey: queryKeys.products(tenantId),
+    queryFn: () => apiFetch<Product[]>(`/api/v1/tenants/${tenantId}/products`),
+    enabled: Boolean(tenantId),
+  });
 
   useEffect(() => {
-    let cancelled = false;
-
-    async function load() {
-      setLoading(true);
-      setError(null);
-      try {
-        const [stock, ledger, catalog] = await Promise.all([
-          apiFetch<InventoryItem[]>(`/api/v1/tenants/${tenantId}/inventory`),
-          apiFetch<InventoryMovement[]>(
-            `/api/v1/tenants/${tenantId}/inventory/movements?limit=50`,
-          ),
-          apiFetch<Product[]>(`/api/v1/tenants/${tenantId}/products`),
-        ]);
-        if (!cancelled) {
-          setItems(stock);
-          setMovements(ledger);
-          setProducts(catalog);
-          setProductId((current) => current || catalog[0]?.id || "");
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : "خطا");
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
+    const first = productsQuery.data?.[0]?.id;
+    if (first) {
+      setProductId((current) => current || first);
     }
+  }, [productsQuery.data]);
 
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [tenantId, reloadToken]);
-
-  async function onSubmit(event: FormEvent) {
-    event.preventDefault();
-    setSaving(true);
-    setError(null);
-    try {
+  const saveMutation = useMutation({
+    mutationFn: async () => {
       if (mode === "receipt") {
         await apiFetch(`/api/v1/tenants/${tenantId}/inventory/receipts`, {
           method: "POST",
@@ -96,16 +80,63 @@ export function InventoryPage() {
           }),
         });
       }
+    },
+    onSuccess: async () => {
       setQuantity("");
       setReference("");
       setReason("");
-      setReloadToken((value) => value + 1);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "خطا در ثبت موجودی");
-    } finally {
-      setSaving(false);
-    }
+      setFormError(null);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.inventory(tenantId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.inventoryMovements(tenantId) }),
+      ]);
+    },
+    onError: (err) => {
+      setFormError(mapApiError(err));
+    },
+  });
+
+  async function onSubmit(event: FormEvent) {
+    event.preventDefault();
+    setFormError(null);
+    await saveMutation.mutateAsync();
   }
+
+  const loading =
+    inventoryQuery.isPending || movementsQuery.isPending || productsQuery.isPending;
+  const firstError = inventoryQuery.error ?? movementsQuery.error ?? productsQuery.error;
+
+  if (loading) {
+    return (
+      <Container maxWidth="md" sx={{ py: 4 }}>
+        <LoadingState />
+      </Container>
+    );
+  }
+
+  if (firstError) {
+    const status = statusFromQueryError(firstError);
+    return (
+      <Container maxWidth="md" sx={{ py: 4 }}>
+        {status.kind === "forbidden" ? (
+          <ForbiddenState message={status.message} />
+        ) : (
+          <ErrorState
+            message={status.message}
+            onRetry={() => {
+              void inventoryQuery.refetch();
+              void movementsQuery.refetch();
+              void productsQuery.refetch();
+            }}
+          />
+        )}
+      </Container>
+    );
+  }
+
+  const items = inventoryQuery.data ?? [];
+  const movements = movementsQuery.data ?? [];
+  const products = productsQuery.data ?? [];
 
   return (
     <Container maxWidth="md" sx={{ py: 4 }}>
@@ -123,11 +154,11 @@ export function InventoryPage() {
         </Stack>
       </Stack>
 
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-      )}
+      {formError ? (
+        <Box sx={{ mb: 2 }}>
+          <ErrorState message={formError} />
+        </Box>
+      ) : null}
 
       <Box component="form" onSubmit={onSubmit} sx={{ mb: 3, display: "grid", gap: 1.5 }}>
         <Typography variant="subtitle1">ثبت رسید / تعدیل</Typography>
@@ -173,63 +204,59 @@ export function InventoryPage() {
             required
           />
         )}
-        <Button type="submit" variant="contained" disabled={saving || !productId}>
+        <Button type="submit" variant="contained" disabled={saveMutation.isPending || !productId}>
           ذخیره
         </Button>
       </Box>
 
-      {loading ? (
-        <CircularProgress />
-      ) : (
-        <>
-          <Typography variant="h6" sx={{ mb: 1, fontWeight: 700 }}>
-            موقعیت‌های موجودی
-          </Typography>
-          {items.length === 0 ? (
-            <Alert severity="info" sx={{ mb: 3 }}>
-              هنوز موجودی ثبت نشده است.
-            </Alert>
-          ) : (
-            <Stack spacing={1} sx={{ mb: 3 }}>
-              {items.map((item) => (
-                <Box key={`${item.product_id}-${item.warehouse_code}`} sx={{ p: 2, bgcolor: "background.paper" }}>
-                  <Typography sx={{ fontWeight: 600 }}>
-                    {item.title}{" "}
-                    <Box component="span" sx={{ direction: "ltr", display: "inline-block" }}>
-                      ({item.sku})
-                    </Box>
-                  </Typography>
-                  <Typography color="text.secondary">
-                    فیزیکی: {item.on_hand} · رزرو: {item.reserved} · قابل فروش: {item.available}
-                    {item.on_hand <= item.stock_warning_threshold ? " · هشدار کمبود" : ""}
-                  </Typography>
-                </Box>
-              ))}
-            </Stack>
-          )}
+      <Typography variant="h6" sx={{ mb: 1, fontWeight: 700 }}>
+        موقعیت‌های موجودی
+      </Typography>
+      <Box sx={{ mb: 3 }}>
+        {items.length === 0 ? (
+          <EmptyState message="هنوز موجودی ثبت نشده است." />
+        ) : (
+          <Stack spacing={1}>
+            {items.map((item) => (
+              <Box
+                key={`${item.product_id}-${item.warehouse_code}`}
+                sx={{ p: 2, bgcolor: "background.paper" }}
+              >
+                <Typography sx={{ fontWeight: 600 }}>
+                  {item.title}{" "}
+                  <Box component="span" sx={{ direction: "ltr", display: "inline-block" }}>
+                    ({item.sku})
+                  </Box>
+                </Typography>
+                <Typography color="text.secondary">
+                  فیزیکی: {item.on_hand} · رزرو: {item.reserved} · قابل فروش: {item.available}
+                  {item.on_hand <= item.stock_warning_threshold ? " · هشدار کمبود" : ""}
+                </Typography>
+              </Box>
+            ))}
+          </Stack>
+        )}
+      </Box>
 
-          <Typography variant="h6" sx={{ mb: 1, fontWeight: 700 }}>
-            دفتر حرکت موجودی
-          </Typography>
-          {movements.length === 0 ? (
-            <Alert severity="info">حرکتی ثبت نشده است.</Alert>
-          ) : (
-            <Stack spacing={1}>
-              {movements.map((movement) => (
-                <Box key={movement.id} sx={{ p: 2, bgcolor: "background.paper" }}>
-                  <Typography sx={{ fontWeight: 600 }}>
-                    {movement.title} ({movement.sku})
-                  </Typography>
-                  <Typography color="text.secondary">
-                    فیزیکی {movement.physical_delta} · رزرو {movement.reserved_delta} ·{" "}
-                    {movement.reason}
-                    {movement.reference ? ` · ${movement.reference}` : ""}
-                  </Typography>
-                </Box>
-              ))}
-            </Stack>
-          )}
-        </>
+      <Typography variant="h6" sx={{ mb: 1, fontWeight: 700 }}>
+        دفتر حرکت موجودی
+      </Typography>
+      {movements.length === 0 ? (
+        <EmptyState message="حرکتی ثبت نشده است." />
+      ) : (
+        <Stack spacing={1}>
+          {movements.map((movement) => (
+            <Box key={movement.id} sx={{ p: 2, bgcolor: "background.paper" }}>
+              <Typography sx={{ fontWeight: 600 }}>
+                {movement.title} ({movement.sku})
+              </Typography>
+              <Typography color="text.secondary">
+                فیزیکی {movement.physical_delta} · رزرو {movement.reserved_delta} · {movement.reason}
+                {movement.reference ? ` · ${movement.reference}` : ""}
+              </Typography>
+            </Box>
+          ))}
+        </Stack>
       )}
     </Container>
   );

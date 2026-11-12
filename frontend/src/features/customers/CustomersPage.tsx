@@ -1,74 +1,72 @@
-import {
-  Alert,
-  Box,
-  Button,
-  CircularProgress,
-  Container,
-  Stack,
-  TextField,
-  Typography,
-} from "@mui/material";
-import { useEffect, useState } from "react";
+import { Box, Button, Container, Stack, TextField, Typography } from "@mui/material";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { FormEvent } from "react";
+import { useState } from "react";
 import { Link as RouterLink, useParams } from "react-router-dom";
-import { apiFetch, type Customer } from "../../shared/api";
+import { apiFetch, mapApiError, type Customer } from "../../shared/api";
+import { statusFromQueryError } from "../../shared/pageStatus";
+import { queryKeys } from "../../shared/query/keys";
+import { EmptyState, ErrorState, ForbiddenState, LoadingState } from "../../shared/ui";
 
 export function CustomersPage() {
   const { tenantId = "" } = useParams();
-  const [items, setItems] = useState<Customer[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [reloadToken, setReloadToken] = useState(0);
+  const [formError, setFormError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
+  const customersQuery = useQuery({
+    queryKey: queryKeys.customers(tenantId),
+    queryFn: () => apiFetch<Customer[]>(`/api/v1/tenants/${tenantId}/customers`),
+    enabled: Boolean(tenantId),
+  });
 
-    async function load() {
-      setLoading(true);
-      setError(null);
-      try {
-        const data = await apiFetch<Customer[]>(`/api/v1/tenants/${tenantId}/customers`);
-        if (!cancelled) {
-          setItems(data);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : "خطا");
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    }
-
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [tenantId, reloadToken]);
-
-  async function onCreate(event: FormEvent) {
-    event.preventDefault();
-    setSaving(true);
-    setError(null);
-    try {
+  const createMutation = useMutation({
+    mutationFn: async () => {
       await apiFetch(`/api/v1/tenants/${tenantId}/customers`, {
         method: "POST",
         body: JSON.stringify({ name, phone: phone || null }),
       });
+    },
+    onSuccess: async () => {
       setName("");
       setPhone("");
-      setReloadToken((value) => value + 1);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "خطا در ایجاد مشتری");
-    } finally {
-      setSaving(false);
-    }
+      setFormError(null);
+      await queryClient.invalidateQueries({ queryKey: queryKeys.customers(tenantId) });
+    },
+    onError: (err) => {
+      setFormError(mapApiError(err));
+    },
+  });
+
+  async function onCreate(event: FormEvent) {
+    event.preventDefault();
+    setFormError(null);
+    await createMutation.mutateAsync();
   }
+
+  if (customersQuery.isPending) {
+    return (
+      <Container maxWidth="md" sx={{ py: 4 }}>
+        <LoadingState />
+      </Container>
+    );
+  }
+
+  if (customersQuery.isError) {
+    const status = statusFromQueryError(customersQuery.error);
+    return (
+      <Container maxWidth="md" sx={{ py: 4 }}>
+        {status.kind === "forbidden" ? (
+          <ForbiddenState message={status.message} />
+        ) : (
+          <ErrorState message={status.message} onRetry={() => void customersQuery.refetch()} />
+        )}
+      </Container>
+    );
+  }
+
+  const items = customersQuery.data ?? [];
 
   return (
     <Container maxWidth="md" sx={{ py: 4 }}>
@@ -81,24 +79,18 @@ export function CustomersPage() {
         </Button>
       </Stack>
 
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-      )}
+      {formError ? <ErrorState message={formError} /> : null}
 
       <Box component="form" onSubmit={onCreate} sx={{ mb: 3, display: "grid", gap: 1.5 }}>
         <TextField label="نام" value={name} onChange={(e) => setName(e.target.value)} required />
         <TextField label="تلفن" value={phone} onChange={(e) => setPhone(e.target.value)} />
-        <Button type="submit" variant="contained" disabled={saving}>
+        <Button type="submit" variant="contained" disabled={createMutation.isPending}>
           ذخیره
         </Button>
       </Box>
 
-      {loading ? (
-        <CircularProgress />
-      ) : items.length === 0 ? (
-        <Alert severity="info">مشتری ثبت نشده است.</Alert>
+      {items.length === 0 ? (
+        <EmptyState message="مشتری ثبت نشده است." />
       ) : (
         <Stack spacing={1}>
           {items.map((item) => (

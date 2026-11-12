@@ -145,11 +145,36 @@ services:
     networks:
       - stockpilot
 
+  openapi-export:
+    profiles: ["test"]
+    build:
+      context: ./backend
+      target: runtime
+    command:
+      [
+        "python",
+        "-m",
+        "stockpilot.bootstrap.export_openapi",
+        "/out/openapi.live.json",
+      ]
+    volumes:
+      - ./frontend/.openapi-tmp:/out
+    networks:
+      - stockpilot
+    restart: "no"
+
   frontend-checks:
     profiles: ["test"]
     build:
       context: ./frontend
       target: checks
+    environment:
+      OPENAPI_LIVE_PATH: /app/.openapi-tmp/openapi.live.json
+    volumes:
+      - ./frontend/.openapi-tmp:/app/.openapi-tmp:ro
+    depends_on:
+      openapi-export:
+        condition: service_completed_successfully
     networks:
       - stockpilot
 

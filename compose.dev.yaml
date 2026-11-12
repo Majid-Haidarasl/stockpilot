@@ -37,10 +37,18 @@ services:
     environment:
       STOCKPILOT_SAMPLE_DATA_PATH: /docs/stockpilot-sample-data.md
 
+  openapi-export:
+    volumes:
+      - ./backend/src:/app/src:ro
+      - ./frontend/.openapi-tmp:/out
+
   frontend-checks:
     volumes:
       - ./frontend/src:/app/src:ro
       - ./frontend/index.html:/app/index.html:ro
+      - ./frontend/openapi.json:/app/openapi.json:ro
+      - ./frontend/scripts:/app/scripts:ro
+      - ./frontend/.openapi-tmp:/app/.openapi-tmp:ro
 
 volumes:
   frontend_node_modules:

@@ -15,7 +15,8 @@ CMD ["npm", "run", "dev"]
 FROM base AS checks
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-CMD ["bash", "-c", "npm run lint && npm run typecheck && npm test"]
+ENV OPENAPI_LIVE_PATH=/app/.openapi-tmp/openapi.live.json
+CMD ["bash", "-c", "npm run check:openapi-drift && npm run lint && npm run typecheck && npm test"]
 
 FROM base AS build
 COPY --from=deps /app/node_modules ./node_modules

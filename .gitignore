@@ -125,6 +125,7 @@ frontend/build/
 # Hand-edited generated trees stay tracked once committed by the project.
 # Ignore local scratch / failed codegen dumps:
 frontend/src/generated/api/.tmp/
+frontend/.openapi-tmp/
 *.generated.tmp.*
 
 # =========================
