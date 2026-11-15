@@ -50,6 +50,80 @@ export async function apiFetch<T>(
   return (await response.json()) as T;
 }
 
+/** Authenticated binary fetch (product images). Does not force JSON Content-Type. */
+export async function apiFetchBlob(path: string, init: RequestInit = {}): Promise<Blob> {
+  const headers = new Headers(init.headers);
+  const method = (init.method ?? "GET").toUpperCase();
+  if (method !== "GET" && method !== "HEAD") {
+    const csrf = csrfToken();
+    if (csrf) headers.set("X-CSRF-Token", csrf);
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}${path}`, {
+      ...init,
+      headers,
+      credentials: "include",
+    });
+  } catch (error) {
+    if (error instanceof TypeError) {
+      throw new ApiProblemError({ status: 0, code: "NETWORK_ERROR", title: "Network error" });
+    }
+    throw error;
+  }
+
+  if (!response.ok) {
+    const problem = await parseApiProblem(response);
+    throw new ApiProblemError(problem);
+  }
+  return response.blob();
+}
+
+/**
+ * Multipart upload helper. Caller must pass FormData; Content-Type is left unset
+ * so the browser sets the multipart boundary. CSRF + credentials included.
+ */
+export async function apiUpload<T>(
+  path: string,
+  formData: FormData,
+  init: RequestInit = {},
+): Promise<T> {
+  const headers = new Headers(init.headers);
+  // Do not set Content-Type for FormData.
+  headers.delete("Content-Type");
+  const method = (init.method ?? "POST").toUpperCase();
+  if (method !== "GET" && method !== "HEAD") {
+    const csrf = csrfToken();
+    if (csrf) headers.set("X-CSRF-Token", csrf);
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}${path}`, {
+      ...init,
+      method,
+      headers,
+      body: formData,
+      credentials: "include",
+    });
+  } catch (error) {
+    if (error instanceof TypeError) {
+      throw new ApiProblemError({ status: 0, code: "NETWORK_ERROR", title: "Network error" });
+    }
+    throw error;
+  }
+
+  if (!response.ok) {
+    const problem = await parseApiProblem(response);
+    throw new ApiProblemError(problem);
+  }
+  if (response.status === 204) {
+    return undefined as T;
+  }
+  return (await response.json()) as T;
+}
+
 export function loginUrl(returnTo = `${window.location.origin}/orgs`): string {
   const params = new URLSearchParams({ return_to: returnTo });
   return `${API_BASE}/auth/login?${params.toString()}`;

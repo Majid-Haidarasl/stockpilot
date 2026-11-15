@@ -19,6 +19,7 @@ import {
   type Order,
   type Product,
 } from "../../shared/api";
+import { ProductThumb } from "../../shared/media/ProductThumb";
 import { formatRial } from "../../shared/money";
 import { createIdempotentAction } from "../../shared/mutations/idempotentAction";
 import { statusFromQueryError } from "../../shared/pageStatus";
@@ -242,8 +243,19 @@ export function DraftOrderPage() {
                           showStockChips && isOutOfStock(stockMap.get(p.id));
                         return (
                           <MenuItem key={p.id} value={p.id}>
-                            {p.title} ({p.sku})
-                            {oos ? ` — ${OUT_OF_STOCK_LABEL}` : ""}
+                            <Stack direction="row" spacing={1} alignItems="center">
+                              <ProductThumb
+                                tenantId={tenantId}
+                                srcPath={p.primary_thumbnail_url}
+                                alt={p.title}
+                                size={32}
+                                decorative
+                              />
+                              <span>
+                                {p.title} ({p.sku})
+                                {oos ? ` — ${OUT_OF_STOCK_LABEL}` : ""}
+                              </span>
+                            </Stack>
                           </MenuItem>
                         );
                       })}
@@ -261,9 +273,23 @@ export function DraftOrderPage() {
                       inputProps={{ inputMode: "numeric", pattern: "[0-9]*" }}
                       sx={{ flex: 1 }}
                     />
-                    <Typography sx={{ minWidth: 140, pt: { sm: 1.5 } }} color="text.secondary">
-                      {product ? formatRial(product.unit_price.amount) : "—"}
-                    </Typography>
+                    <Stack
+                      direction="row"
+                      spacing={1}
+                      alignItems="center"
+                      sx={{ minWidth: 180, pt: { sm: 1 } }}
+                    >
+                      <ProductThumb
+                        tenantId={tenantId}
+                        srcPath={product?.primary_thumbnail_url}
+                        alt={product?.title ?? ""}
+                        size={32}
+                        decorative
+                      />
+                      <Typography color="text.secondary">
+                        {product ? formatRial(product.unit_price.amount) : "—"}
+                      </Typography>
+                    </Stack>
                     <IconButton
                       aria-label="حذف سطر"
                       onClick={() => setLines(lines.filter((_, i) => i !== index))}

@@ -197,5 +197,6 @@ docs/evidence/*.local.md
 # =========================
 *.local
 !*.local.example
+.local/
 .direnv/
 .envrc.local

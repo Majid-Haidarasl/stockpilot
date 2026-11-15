@@ -72,12 +72,16 @@ services:
       target: runtime
     environment:
       STOCKPILOT_MIGRATION_DATABASE_URL: postgresql+psycopg://stockpilot_migrator:${STOCKPILOT_MIGRATOR_PASSWORD:-migrator_dev_change_me}@postgres:5432/stockpilot
+      # Runtime role for commercial writes (e.g. import-product-images). Bootstrap/seed still use migrator URL.
+      STOCKPILOT_DATABASE_URL: postgresql+psycopg://stockpilot_app:${STOCKPILOT_APP_PASSWORD:-app_dev_change_me}@postgres:5432/stockpilot
+      STOCKPILOT_MEDIA_DIR: /var/lib/stockpilot/media
       STOCKPILOT_OIDC_ISSUER: ${STOCKPILOT_OIDC_ISSUER:-http://localhost:8180/realms/stockpilot}
       STOCKPILOT_ENVIRONMENT: ${STOCKPILOT_ENVIRONMENT:-development}
       STOCKPILOT_SAMPLE_DATA_PATH: /docs/stockpilot-sample-data.md
     volumes:
       - ./docs:/docs:ro
-    # Override command when running: bootstrap | seed-demo | balance-check
+      - stockpilot_media:/var/lib/stockpilot/media
+    # Override command when running: bootstrap | seed-demo | balance-check | import-product-images
     command: ["python", "-m", "stockpilot.bootstrap.ops", "bootstrap", "--environment", "development"]
     depends_on:
       migrate:

@@ -10,6 +10,11 @@ from uuid import UUID
 
 from sqlalchemy import Engine, create_engine, text
 
+from stockpilot.bootstrap.import_product_images import (
+    format_summary,
+    import_product_images,
+    resolve_import_actor,
+)
 from stockpilot.bootstrap.sample_data import (
     load_sample_markdown,
     parse_companies,
@@ -21,6 +26,7 @@ from stockpilot.modules.catalog.adapters.outbound.repo import CatalogRepository
 from stockpilot.modules.inventory.adapters.outbound.repo import InventoryRepository
 from stockpilot.modules.inventory.domain.models import DEFAULT_WAREHOUSE
 from stockpilot.modules.sales.adapters.outbound.customer_repo import CustomerRepository
+from stockpilot.platform.persistence.db import get_engine
 from stockpilot.platform.persistence.uow import UnitOfWork
 from stockpilot.platform.settings import get_settings
 
@@ -415,6 +421,50 @@ def cmd_cleanup_test_tenants(environment: str) -> None:
     )
 
 
+def cmd_import_product_images(
+    *,
+    tenant_slug: str,
+    zip_path: Path,
+    actor_email: str,
+    dry_run: bool,
+) -> None:
+    """Import product images using runtime DB role (stockpilot_app) + media volume."""
+    # Ensure settings/engine use STOCKPILOT_DATABASE_URL (runtime role), not migrator.
+    engine = get_engine()
+    actor = resolve_import_actor(
+        engine=engine,
+        tenant_slug=tenant_slug,
+        actor_email=actor_email,
+    )
+    # Confirm we are not on migrator (best-effort from URL username).
+    db_url = str(engine.url)
+    if "stockpilot_migrator" in db_url:
+        raise SystemExit(
+            "import-product-images refuses STOCKPILOT_DATABASE_URL with migrator role; "
+            "use stockpilot_app"
+        )
+    db_role = "stockpilot_app"
+    if "stockpilot_app" in db_url:
+        db_role = "stockpilot_app"
+    counters = import_product_images(
+        engine=engine,
+        actor=actor,
+        zip_path=zip_path,
+        dry_run=dry_run,
+    )
+    print(
+        format_summary(
+            counters=counters,
+            actor=actor,
+            dry_run=dry_run,
+            db_role=db_role,
+        ),
+        flush=True,
+    )
+    if counters.failed:
+        raise SystemExit(1)
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="stockpilot-ops")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -452,6 +502,28 @@ def main(argv: list[str] | None = None) -> None:
     balance = sub.add_parser("balance-check", help="Report stock ledger vs counter mismatches")
     balance.add_argument("--tenant-slug", default=None)
 
+    img_import = sub.add_parser(
+        "import-product-images",
+        help="Import product images from zip+manifest for one tenant (runtime DB role)",
+    )
+    img_import.add_argument("--tenant", required=True, help="Tenant slug (e.g. aftab)")
+    img_import.add_argument(
+        "--zip",
+        required=True,
+        dest="zip_path",
+        help="Path to zip inside container",
+    )
+    img_import.add_argument(
+        "--actor-email",
+        required=True,
+        help="Existing admin or sales member email used for created_by + audit",
+    )
+    img_import.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Validate and report without writing images",
+    )
+
     args = parser.parse_args(argv)
     if args.command == "bootstrap":
         cmd_bootstrap(args.environment)
@@ -465,6 +537,13 @@ def main(argv: list[str] | None = None) -> None:
         cmd_cleanup_test_tenants(args.environment)
     elif args.command == "balance-check":
         cmd_balance_check(args.tenant_slug)
+    elif args.command == "import-product-images":
+        cmd_import_product_images(
+            tenant_slug=args.tenant,
+            zip_path=Path(args.zip_path),
+            actor_email=args.actor_email,
+            dry_run=bool(args.dry_run),
+        )
     else:
         raise SystemExit(f"Unknown command: {args.command}")
 

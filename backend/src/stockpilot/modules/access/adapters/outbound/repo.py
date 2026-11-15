@@ -104,6 +104,25 @@ class AccessRepository:
         )
         return dict(row) if row else None
 
+    def get_user_by_email(self, email: str) -> dict[str, Any] | None:
+        row = (
+            self._conn.execute(
+                text(
+                    """
+                SELECT id, issuer, subject, email, display_name
+                FROM access.users
+                WHERE lower(email) = lower(:email)
+                ORDER BY updated_at DESC
+                LIMIT 1
+                """
+                ),
+                {"email": email},
+            )
+            .mappings()
+            .first()
+        )
+        return dict(row) if row else None
+
     def create_login_attempt(
         self,
         *,

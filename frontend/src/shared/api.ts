@@ -1,4 +1,4 @@
-export { apiFetch, loginUrl, logoutRequest } from "./api/client";
+export { apiFetch, apiFetchBlob, apiUpload, loginUrl, logoutRequest } from "./api/client";
 export { mapApiError, mapApiProblem } from "./api/mapApiError";
 export {
   ApiProblemError,
@@ -21,4 +21,5 @@ export type {
   OrderListItem,
   OrderTimelineEvent,
   Product,
+  ProductImage,
 } from "./api/types";

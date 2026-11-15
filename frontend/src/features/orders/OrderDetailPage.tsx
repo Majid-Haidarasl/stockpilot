@@ -8,7 +8,9 @@ import {
   type Order,
   type OrderLine,
   type OrderTimelineEvent,
+  type Product,
 } from "../../shared/api";
+import { ProductThumb } from "../../shared/media/ProductThumb";
 import { formatRial, toPersianDigits } from "../../shared/money";
 import { statusFromQueryError } from "../../shared/pageStatus";
 import { queryKeys } from "../../shared/query/keys";
@@ -56,6 +58,20 @@ export function OrderDetailPage() {
     queryFn: () => apiFetch<Customer[]>(`/api/v1/tenants/${tenantId}/customers`),
     enabled: Boolean(tenantId),
   });
+
+  const productsQuery = useQuery({
+    queryKey: queryKeys.products(tenantId),
+    queryFn: () => apiFetch<Product[]>(`/api/v1/tenants/${tenantId}/products`),
+    enabled: Boolean(tenantId),
+  });
+
+  const productThumbById = useMemo(() => {
+    const map = new Map<string, string | null>();
+    for (const p of productsQuery.data ?? []) {
+      map.set(p.id, p.primary_thumbnail_url ?? null);
+    }
+    return map;
+  }, [productsQuery.data]);
 
   const titleBySku = useMemo(() => {
     const map: Record<string, string> = {};
@@ -123,12 +139,20 @@ export function OrderDetailPage() {
       id: "title",
       header: "کالا",
       render: (line) => (
-        <Box>
-          <Typography sx={{ fontWeight: 600 }}>{line.product_title}</Typography>
-          <Typography variant="body2" color="text.secondary" dir="ltr">
-            {line.product_sku}
-          </Typography>
-        </Box>
+        <Stack direction="row" spacing={1.5} alignItems="center">
+          <ProductThumb
+            tenantId={tenantId}
+            srcPath={productThumbById.get(line.product_id)}
+            alt={line.product_title}
+            decorative
+          />
+          <Box>
+            <Typography sx={{ fontWeight: 600 }}>{line.product_title}</Typography>
+            <Typography variant="body2" color="text.secondary" dir="ltr">
+              {line.product_sku}
+            </Typography>
+          </Box>
+        </Stack>
       ),
     },
     {
@@ -230,16 +254,28 @@ export function OrderDetailPage() {
         rowKey={(line) => line.id}
         emptyMessage="سطری ثبت نشده است."
         renderMobileRow={(line) => (
-          <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 1 }}>
-            <Typography sx={{ fontWeight: 600 }}>{line.product_title}</Typography>
-            <Typography variant="body2" color="text.secondary" dir="ltr">
-              {line.product_sku}
-            </Typography>
-            <Typography variant="body2">
-              تعداد: {toPersianDigits(String(line.quantity))} · قیمت واحد:{" "}
-              {formatRial(line.unit_price.amount)}
-            </Typography>
-          </Box>
+          <Stack
+            direction="row"
+            spacing={1.5}
+            sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 1 }}
+          >
+            <ProductThumb
+              tenantId={tenantId}
+              srcPath={productThumbById.get(line.product_id)}
+              alt={line.product_title}
+              decorative
+            />
+            <Box>
+              <Typography sx={{ fontWeight: 600 }}>{line.product_title}</Typography>
+              <Typography variant="body2" color="text.secondary" dir="ltr">
+                {line.product_sku}
+              </Typography>
+              <Typography variant="body2">
+                تعداد: {toPersianDigits(String(line.quantity))} · قیمت واحد:{" "}
+                {formatRial(line.unit_price.amount)}
+              </Typography>
+            </Box>
+          </Stack>
         )}
       />
 

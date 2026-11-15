@@ -19,6 +19,11 @@ export const queryKeys = {
   dashboard: (tenantId: string, from: string, to: string) =>
     ["tenant", tenantId, "dashboard", from, to] as const,
   members: (tenantId: string) => ["tenant", tenantId, "members"] as const,
+  productImages: (tenantId: string, productId: string) =>
+    ["tenant", tenantId, "products", productId, "images"] as const,
+  /** Authenticated media blob object URLs (thumbnail/file paths). */
+  media: (tenantId: string, path: string) =>
+    ["tenant", tenantId, "media", path] as const,
 };
 
 export function assertTenantInKey(key: readonly unknown[], tenantId: string): boolean {

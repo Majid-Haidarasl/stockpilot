@@ -34,4 +34,33 @@ describe("tenant query cache", () => {
       organizations: [],
     });
   });
+
+  it("removes tenant media blob keys on org switch / logout clear", async () => {
+    const queryClient = new QueryClient();
+    const revoke = vi.fn();
+    // jsdom may not define URL.revokeObjectURL — install a stub for this test.
+    Object.defineProperty(URL, "revokeObjectURL", {
+      configurable: true,
+      writable: true,
+      value: revoke,
+    });
+    const mediaKey = queryKeys.media("tenant-a", "/api/v1/tenants/tenant-a/images/x/thumbnail");
+    queryClient.setQueryData(mediaKey, "blob:http://localhost/fake-a");
+    queryClient.setQueryData(
+      queryKeys.media("tenant-b", "/api/v1/tenants/tenant-b/images/y/thumbnail"),
+      "blob:http://localhost/fake-b",
+    );
+    queryClient.setQueryData(queryKeys.me(), { user: { id: "u1" }, organizations: [] });
+
+    await clearTenantSensitiveCache(queryClient);
+
+    expect(queryClient.getQueryData(mediaKey)).toBeUndefined();
+    expect(
+      queryClient.getQueryData(
+        queryKeys.media("tenant-b", "/api/v1/tenants/tenant-b/images/y/thumbnail"),
+      ),
+    ).toBeUndefined();
+    expect(revoke).toHaveBeenCalled();
+    expect(queryClient.getQueryData(queryKeys.me())).toBeTruthy();
+  });
 });

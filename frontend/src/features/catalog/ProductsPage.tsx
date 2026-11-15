@@ -4,6 +4,7 @@ import type { FormEvent } from "react";
 import { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { apiFetch, mapApiError, type Product } from "../../shared/api";
+import { ProductThumb } from "../../shared/media/ProductThumb";
 import { formatRial, toPersianDigits } from "../../shared/money";
 import { statusFromQueryError } from "../../shared/pageStatus";
 import { queryKeys } from "../../shared/query/keys";
@@ -12,6 +13,7 @@ import {
   isOutOfStock,
   useInventoryStockMap,
 } from "../../shared/query/useInventoryStockMap";
+import { getTenant } from "../../shared/tenant";
 import {
   DataTable,
   ErrorState,
@@ -22,34 +24,19 @@ import {
   TenantShell,
   type DataTableColumn,
 } from "../../shared/ui";
+import { ProductImagesDialog } from "./ProductImagesDialog";
 import { filterProductsBySearch } from "./productsFilter";
-
-/** Fixed placeholder for future product thumbnails (Run 5/6). No image logic. */
-function ThumbnailPlaceholder() {
-  return (
-    <Box
-      aria-hidden
-      sx={{
-        width: 40,
-        height: 40,
-        borderRadius: 1,
-        bgcolor: "action.hover",
-        border: 1,
-        borderColor: "divider",
-        flexShrink: 0,
-      }}
-    />
-  );
-}
 
 export function ProductsPage() {
   const { tenantId = "" } = useParams();
+  const role = getTenant()?.role ?? "viewer";
   const queryClient = useQueryClient();
   const [sku, setSku] = useState("");
   const [title, setTitle] = useState("");
   const [price, setPrice] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [galleryProduct, setGalleryProduct] = useState<Product | null>(null);
 
   const productsQuery = useQuery({
     queryKey: queryKeys.products(tenantId),
@@ -127,7 +114,21 @@ export function ProductsPage() {
     {
       id: "thumb",
       header: "",
-      render: () => <ThumbnailPlaceholder />,
+      render: (item) => (
+        <Box
+          component="button"
+          type="button"
+          onClick={() => setGalleryProduct(item)}
+          aria-label={`تصاویر ${item.title}`}
+          sx={{ p: 0, border: "none", background: "none", cursor: "pointer" }}
+        >
+          <ProductThumb
+            tenantId={tenantId}
+            srcPath={item.primary_thumbnail_url}
+            alt={item.title}
+          />
+        </Box>
+      ),
     },
     {
       id: "title",
@@ -172,6 +173,15 @@ export function ProductsPage() {
       id: "version",
       header: "نسخه",
       render: (item) => toPersianDigits(String(item.version)),
+    },
+    {
+      id: "images",
+      header: "",
+      render: (item) => (
+        <Button size="small" onClick={() => setGalleryProduct(item)}>
+          تصاویر
+        </Button>
+      ),
     },
   ];
 
@@ -223,8 +233,20 @@ export function ProductsPage() {
             spacing={1.5}
             sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 1 }}
           >
-            <ThumbnailPlaceholder />
-            <Box sx={{ minWidth: 0 }}>
+            <Box
+              component="button"
+              type="button"
+              onClick={() => setGalleryProduct(item)}
+              aria-label={`تصاویر ${item.title}`}
+              sx={{ p: 0, border: "none", background: "none", cursor: "pointer" }}
+            >
+              <ProductThumb
+                tenantId={tenantId}
+                srcPath={item.primary_thumbnail_url}
+                alt={item.title}
+              />
+            </Box>
+            <Box sx={{ minWidth: 0, flex: 1 }}>
               <Typography sx={{ fontWeight: 600 }}>{item.title}</Typography>
               <Typography variant="body2" color="text.secondary" dir="ltr">
                 {item.sku}
@@ -241,9 +263,20 @@ export function ProductsPage() {
                   <OutOfStockChip show={isOutOfStock(stockMap.get(item.id))} />
                 </Stack>
               ) : null}
+              <Button size="small" sx={{ mt: 0.5 }} onClick={() => setGalleryProduct(item)}>
+                تصاویر
+              </Button>
             </Box>
           </Stack>
         )}
+      />
+
+      <ProductImagesDialog
+        open={Boolean(galleryProduct)}
+        tenantId={tenantId}
+        product={galleryProduct}
+        role={role}
+        onClose={() => setGalleryProduct(null)}
       />
     </TenantShell>
   );

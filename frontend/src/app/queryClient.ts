@@ -1,7 +1,8 @@
 import { QueryClient } from "@tanstack/react-query";
+import { setupMediaUrlRevocation } from "../shared/query/mediaCache";
 
 export function createQueryClient(): QueryClient {
-  return new QueryClient({
+  const client = new QueryClient({
     defaultOptions: {
       queries: {
         retry: false,
@@ -12,4 +13,6 @@ export function createQueryClient(): QueryClient {
       },
     },
   });
+  setupMediaUrlRevocation(client);
+  return client;
 }

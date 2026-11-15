@@ -27,6 +27,21 @@ export type Product = {
   primary_thumbnail_url?: string | null;
 };
 
+export type ProductImage = {
+  id: string;
+  product_id: string;
+  content_type: string;
+  width: number;
+  height: number;
+  size_bytes: number;
+  sha256: string;
+  is_primary: boolean;
+  sort_order: number;
+  url: string;
+  thumbnail_url: string;
+  created_at: string;
+};
+
 export type Customer = {
   id: string;
   tenant_id: string;
