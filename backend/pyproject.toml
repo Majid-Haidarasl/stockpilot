@@ -17,6 +17,7 @@ dependencies = [
   "cryptography>=44.0",
   "pillow>=11.0",
   "python-multipart>=0.0.20",
+  "celery==5.5.3",
 ]
 
 [dependency-groups]
@@ -53,7 +54,7 @@ packages = ["stockpilot"]
 mypy_path = "src"
 
 [[tool.mypy.overrides]]
-module = ["alembic.*", "authlib.*", "cryptography.*", "PIL.*"]
+module = ["alembic.*", "authlib.*", "cryptography.*", "PIL.*", "celery.*", "kombu.*"]
 ignore_missing_imports = true
 
 [tool.importlinter]

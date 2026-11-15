@@ -69,6 +69,7 @@ services:
     environment:
       STOCKPILOT_TEST_ADMIN_DATABASE_URL: postgresql+psycopg://${POSTGRES_SUPERUSER:-postgres}:${POSTGRES_SUPERUSER_PASSWORD:-postgres}@postgres:5432/postgres
       STOCKPILOT_TEST_DATABASE_NAME: stockpilot_test
+      STOCKPILOT_RELAY_PASSWORD: ${STOCKPILOT_RELAY_PASSWORD:-relay_dev_change_me}
     command: ["python", "-m", "stockpilot.bootstrap.ensure_test_db"]
     depends_on:
       postgres:

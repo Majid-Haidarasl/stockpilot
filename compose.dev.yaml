@@ -8,12 +8,21 @@ services:
       - "${KEYCLOAK_HOST_PORT:-8180}:8080"
       - "${KEYCLOAK_MGMT_HOST_PORT:-9000}:9000"
 
+  rabbitmq:
+    # Management UI localhost-only — not public.
+    ports:
+      - "127.0.0.1:${RABBITMQ_MGMT_HOST_PORT:-15672}:15672"
+
   api:
     ports:
       - "${API_HOST_PORT:-8200}:8000"
     volumes:
       - ./backend/src:/app/src:ro
     command: ["uvicorn", "stockpilot.bootstrap.app:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+  relay:
+    volumes:
+      - ./backend/src:/app/src:ro
 
   frontend-dev:
     ports:

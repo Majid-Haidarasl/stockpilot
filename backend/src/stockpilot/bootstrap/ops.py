@@ -26,6 +26,7 @@ from stockpilot.modules.catalog.adapters.outbound.repo import CatalogRepository
 from stockpilot.modules.inventory.adapters.outbound.repo import InventoryRepository
 from stockpilot.modules.inventory.domain.models import DEFAULT_WAREHOUSE
 from stockpilot.modules.sales.adapters.outbound.customer_repo import CustomerRepository
+from stockpilot.platform.db_roles import ensure_stockpilot_relay
 from stockpilot.platform.persistence.db import get_engine
 from stockpilot.platform.persistence.uow import UnitOfWork
 from stockpilot.platform.settings import get_settings
@@ -58,6 +59,22 @@ def _migration_engine() -> Engine:
     if not url:
         raise SystemExit("STOCKPILOT_MIGRATION_DATABASE_URL is required for ops")
     return create_engine(url, pool_pre_ping=True)
+
+
+def cmd_ensure_db_roles() -> None:
+    """Idempotent create/update of stockpilot_relay (superuser). Never logs secrets."""
+    admin_url = os.environ.get("STOCKPILOT_ADMIN_DATABASE_URL")
+    if not admin_url:
+        raise SystemExit(
+            "STOCKPILOT_ADMIN_DATABASE_URL is required for ensure-db-roles "
+            "(ops service only; never pass to api/relay/migrate)"
+        )
+    relay_password = os.environ.get("STOCKPILOT_RELAY_PASSWORD")
+    engine = create_engine(admin_url, isolation_level="AUTOCOMMIT", pool_pre_ping=True)
+    with engine.connect() as conn:
+        ensure_stockpilot_relay(conn, password=relay_password)
+    # Do not print passwords or the admin URL.
+    print("ensure-db-roles: stockpilot_relay ready", flush=True)
 
 
 def _assert_dev_only(environment: str, *, command: str) -> None:
@@ -502,6 +519,11 @@ def main(argv: list[str] | None = None) -> None:
     balance = sub.add_parser("balance-check", help="Report stock ledger vs counter mismatches")
     balance.add_argument("--tenant-slug", default=None)
 
+    sub.add_parser(
+        "ensure-db-roles",
+        help="Idempotent create/update stockpilot_relay (superuser; existing volumes)",
+    )
+
     img_import = sub.add_parser(
         "import-product-images",
         help="Import product images from zip+manifest for one tenant (runtime DB role)",
@@ -537,6 +559,8 @@ def main(argv: list[str] | None = None) -> None:
         cmd_cleanup_test_tenants(args.environment)
     elif args.command == "balance-check":
         cmd_balance_check(args.tenant_slug)
+    elif args.command == "ensure-db-roles":
+        cmd_ensure_db_roles()
     elif args.command == "import-product-images":
         cmd_import_product_images(
             tenant_slug=args.tenant,

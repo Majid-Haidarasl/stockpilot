@@ -14,6 +14,7 @@
 | T10 | Done (local) | Order domain + draft APIs, clock/scheduler skeleton; inventory wiring deferred to T11 |
 | T11 | Done (local) | Shared UoW cycle, idempotency+Outbox writer, lock order in ADR-002, tenant-scoped expire scheduler; critical tests ×20 last-stock + Retry-After |
 | T12 | Done (local, run 4/4) | Order UI + dashboard/members + Playwright e2e (isolated -p stockpilot-e2e); report `docs/reports/t12-week5.md` |
+| T13 | In progress (run 5.1/4) | RabbitMQ + Celery app + Outbox Relay (lease/confirm/unroutable); report `docs/reports/phase5-run5_1.md` |
 
 Phase 1 verification evidence: `docs/evidence/phase-1-report.md`  
 Phase 2 verification evidence: `docs/evidence/phase-2-report.md`  
