@@ -15,6 +15,8 @@ dependencies = [
   "authlib>=1.4",
   "httpx>=0.28",
   "cryptography>=44.0",
+  "pillow>=11.0",
+  "python-multipart>=0.0.20",
 ]
 
 [dependency-groups]
@@ -51,7 +53,7 @@ packages = ["stockpilot"]
 mypy_path = "src"
 
 [[tool.mypy.overrides]]
-module = ["alembic.*", "authlib.*", "cryptography.*"]
+module = ["alembic.*", "authlib.*", "cryptography.*", "PIL.*"]
 ignore_missing_imports = true
 
 [tool.importlinter]
@@ -109,6 +111,7 @@ modules = [
 ]
 ignore_imports = [
   "stockpilot.modules.catalog.adapters.inbound.routes -> stockpilot.modules.access.public",
+  "stockpilot.modules.catalog.adapters.inbound.image_routes -> stockpilot.modules.access.public",
   "stockpilot.modules.sales.adapters.inbound.customer_routes -> stockpilot.modules.access.public",
   "stockpilot.modules.sales.adapters.inbound.dashboard_routes -> stockpilot.modules.access.public",
   "stockpilot.modules.sales.adapters.inbound.order_routes -> stockpilot.modules.access.public",

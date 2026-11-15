@@ -18,8 +18,20 @@ class Settings(BaseSettings):
         alias="STOCKPILOT_DATABASE_URL",
     )
     expected_schema_revision: str = Field(
-        default="0008_audit_log_seq",
+        default="0009_product_images",
         alias="STOCKPILOT_EXPECTED_SCHEMA_REVISION",
+    )
+    media_dir: str = Field(
+        default="/var/lib/stockpilot/media",
+        alias="STOCKPILOT_MEDIA_DIR",
+    )
+    image_max_bytes: int = Field(
+        default=5_242_880,
+        alias="STOCKPILOT_IMAGE_MAX_BYTES",
+    )
+    image_max_pixels: int = Field(
+        default=24_000_000,
+        alias="STOCKPILOT_IMAGE_MAX_PIXELS",
     )
 
     # Public issuer must match what the browser sees (do not disable issuer checks).

@@ -33,6 +33,8 @@ Host: Windows 11 + Docker Desktop (WSL2), AMD64. Containers are Linux.
 | httpx | 0.28.1 |
 | authlib | 1.9.5 |
 | cryptography | 50.0.2 |
+| pillow | 13.0.0 |
+| python-multipart | 0.0.33 |
 
 ## Identity (Phase 2)
 

@@ -19,11 +19,19 @@ class CatalogRepository:
             self._conn.execute(
                 text(
                     """
-                SELECT id, tenant_id, sku, title, unit_price_rial, currency, is_active,
-                       stock_warning_threshold, version, created_at, updated_at
-                FROM catalog.products
-                WHERE tenant_id = :tenant_id
-                ORDER BY sku
+                SELECT p.id, p.tenant_id, p.sku, p.title, p.unit_price_rial, p.currency,
+                       p.is_active, p.stock_warning_threshold, p.version,
+                       p.created_at, p.updated_at,
+                       (
+                         SELECT i.id FROM catalog.product_images i
+                         WHERE i.tenant_id = p.tenant_id
+                           AND i.product_id = p.id
+                           AND i.is_primary = TRUE
+                         LIMIT 1
+                       ) AS primary_image_id
+                FROM catalog.products p
+                WHERE p.tenant_id = :tenant_id
+                ORDER BY p.sku
                 """
                 ),
                 {"tenant_id": str(tenant_id)},
@@ -38,10 +46,18 @@ class CatalogRepository:
             self._conn.execute(
                 text(
                     """
-                SELECT id, tenant_id, sku, title, unit_price_rial, currency, is_active,
-                       stock_warning_threshold, version, created_at, updated_at
-                FROM catalog.products
-                WHERE tenant_id = :tenant_id AND id = :id
+                SELECT p.id, p.tenant_id, p.sku, p.title, p.unit_price_rial, p.currency,
+                       p.is_active, p.stock_warning_threshold, p.version,
+                       p.created_at, p.updated_at,
+                       (
+                         SELECT i.id FROM catalog.product_images i
+                         WHERE i.tenant_id = p.tenant_id
+                           AND i.product_id = p.id
+                           AND i.is_primary = TRUE
+                         LIMIT 1
+                       ) AS primary_image_id
+                FROM catalog.products p
+                WHERE p.tenant_id = :tenant_id AND p.id = :id
                 """
                 ),
                 {"tenant_id": str(tenant_id), "id": str(product_id)},
@@ -56,10 +72,18 @@ class CatalogRepository:
             self._conn.execute(
                 text(
                     """
-                SELECT id, tenant_id, sku, title, unit_price_rial, currency, is_active,
-                       stock_warning_threshold, version, created_at, updated_at
-                FROM catalog.products
-                WHERE tenant_id = :tenant_id AND sku = :sku
+                SELECT p.id, p.tenant_id, p.sku, p.title, p.unit_price_rial, p.currency,
+                       p.is_active, p.stock_warning_threshold, p.version,
+                       p.created_at, p.updated_at,
+                       (
+                         SELECT i.id FROM catalog.product_images i
+                         WHERE i.tenant_id = p.tenant_id
+                           AND i.product_id = p.id
+                           AND i.is_primary = TRUE
+                         LIMIT 1
+                       ) AS primary_image_id
+                FROM catalog.products p
+                WHERE p.tenant_id = :tenant_id AND p.sku = :sku
                 """
                 ),
                 {"tenant_id": str(tenant_id), "sku": sku},

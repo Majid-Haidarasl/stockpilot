@@ -26,6 +26,8 @@ COPY alembic.ini ./
 COPY alembic ./alembic
 COPY src ./src
 COPY pyproject.toml uv.lock README.md ./
+RUN mkdir -p /var/lib/stockpilot/media \
+    && chown -R app:app /var/lib/stockpilot
 USER app
 EXPOSE 8000
 CMD ["uvicorn", "stockpilot.bootstrap.app:app", "--host", "0.0.0.0", "--port", "8000"]

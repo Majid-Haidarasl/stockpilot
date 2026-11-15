@@ -67,6 +67,18 @@ export function mapApiProblem(
       return "این درخواست با کلید تکراری و بدنه متفاوت ارسال شده است.";
     case "IDEMPOTENCY_IN_PROGRESS":
       return "درخواست قبلی هنوز در حال پردازش است. کمی بعد دوباره تلاش کنید.";
+    case "IMAGE_TOO_LARGE":
+      return "حجم تصویر بیش از حد مجاز است.";
+    case "IMAGE_TYPE_NOT_ALLOWED":
+      return "فقط تصویر JPEG، PNG یا WebP پذیرفته می‌شود.";
+    case "IMAGE_LIMIT_REACHED":
+      return "هر کالا حداکثر ۵ تصویر می‌تواند داشته باشد.";
+    case "IMAGE_DIMENSIONS_TOO_LARGE":
+      return "ابعاد تصویر بیش از حد مجاز است.";
+    case "IMAGE_DECODE_FAILED":
+      return "فایل تصویر قابل خواندن نیست.";
+    case "IMAGE_DUPLICATE":
+      return "این تصویر قبلاً برای این کالا ثبت شده است.";
     case "NETWORK_ERROR":
       return "ارتباط با سرور برقرار نشد. اتصال اینترنت را بررسی کنید.";
     default:

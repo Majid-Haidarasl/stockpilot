@@ -18,3 +18,16 @@ describe("mapApiError stock shortfall", () => {
     expect(message).toMatch(/قابل فروش/);
   });
 });
+
+describe("mapApiError product images", () => {
+  it.each([
+    ["IMAGE_TOO_LARGE", "حجم تصویر بیش از حد مجاز است."],
+    ["IMAGE_TYPE_NOT_ALLOWED", "فقط تصویر JPEG، PNG یا WebP پذیرفته می‌شود."],
+    ["IMAGE_LIMIT_REACHED", "هر کالا حداکثر ۵ تصویر می‌تواند داشته باشد."],
+    ["IMAGE_DIMENSIONS_TOO_LARGE", "ابعاد تصویر بیش از حد مجاز است."],
+    ["IMAGE_DECODE_FAILED", "فایل تصویر قابل خواندن نیست."],
+    ["IMAGE_DUPLICATE", "این تصویر قبلاً برای این کالا ثبت شده است."],
+  ] as const)("maps %s to Persian", (code, expected) => {
+    expect(mapApiProblem({ status: 422, code, title: code })).toBe(expected);
+  });
+});

@@ -90,6 +90,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tenants/{tenant_id}/images/{image_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Image */
+        delete: operations["delete_image_api_v1_tenants__tenant_id__images__image_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/images/{image_id}/file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Image File */
+        get: operations["get_image_file_api_v1_tenants__tenant_id__images__image_id__file_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/images/{image_id}/primary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Set Primary */
+        post: operations["set_primary_api_v1_tenants__tenant_id__images__image_id__primary_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/images/{image_id}/thumbnail": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Image Thumbnail */
+        get: operations["get_image_thumbnail_api_v1_tenants__tenant_id__images__image_id__thumbnail_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tenants/{tenant_id}/inventory": {
         parameters: {
             query?: never;
@@ -351,6 +419,41 @@ export interface paths {
         patch: operations["patch_product_api_v1_tenants__tenant_id__products__product_id__patch"];
         trace?: never;
     };
+    "/api/v1/tenants/{tenant_id}/products/{product_id}/images": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Images */
+        get: operations["list_images_api_v1_tenants__tenant_id__products__product_id__images_get"];
+        put?: never;
+        /** Upload Image */
+        post: operations["upload_image_api_v1_tenants__tenant_id__products__product_id__images_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/products/{product_id}/images/reorder": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reorder Images */
+        post: operations["reorder_images_api_v1_tenants__tenant_id__products__product_id__images_reorder_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/callback": {
         parameters: {
             query?: never;
@@ -438,6 +541,11 @@ export interface components {
              * @default main
              */
             warehouse_code: string;
+        };
+        /** Body_upload_image_api_v1_tenants__tenant_id__products__product_id__images_post */
+        Body_upload_image_api_v1_tenants__tenant_id__products__product_id__images_post: {
+            /** File */
+            file: string;
         };
         /** CreateCustomerBody */
         CreateCustomerBody: {
@@ -733,12 +841,41 @@ export interface components {
             /** Unit Price Rial */
             unit_price_rial?: string | null;
         };
+        /** ProductImageOut */
+        ProductImageOut: {
+            /** Content Type */
+            content_type: string;
+            /** Created At */
+            created_at: string;
+            /** Height */
+            height: number;
+            /** Id */
+            id: string;
+            /** Is Primary */
+            is_primary: boolean;
+            /** Product Id */
+            product_id: string;
+            /** Sha256 */
+            sha256: string;
+            /** Size Bytes */
+            size_bytes: number;
+            /** Sort Order */
+            sort_order: number;
+            /** Thumbnail Url */
+            thumbnail_url: string;
+            /** Url */
+            url: string;
+            /** Width */
+            width: number;
+        };
         /** ProductOut */
         ProductOut: {
             /** Id */
             id: string;
             /** Is Active */
             is_active: boolean;
+            /** Primary Thumbnail Url */
+            primary_thumbnail_url?: string | null;
             /** Sku */
             sku: string;
             /** Stock Warning Threshold */
@@ -764,6 +901,11 @@ export interface components {
              * @default main
              */
             warehouse_code: string;
+        };
+        /** ReorderBody */
+        ReorderBody: {
+            /** Image Ids */
+            image_ids: string[];
         };
         /** ValidationError */
         ValidationError: {
@@ -967,6 +1109,140 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DashboardOut"] | unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_image_api_v1_tenants__tenant_id__images__image_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+                "X-CSRF-Token"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                image_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_image_file_api_v1_tenants__tenant_id__images__image_id__file_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenant_id: string;
+                image_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_primary_api_v1_tenants__tenant_id__images__image_id__primary_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+                "X-CSRF-Token"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                image_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductImageOut"] | unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_image_thumbnail_api_v1_tenants__tenant_id__images__image_id__thumbnail_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenant_id: string;
+                image_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
@@ -1618,6 +1894,116 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProductOut"] | unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_images_api_v1_tenants__tenant_id__products__product_id__images_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenant_id: string;
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductImageOut"][] | unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_image_api_v1_tenants__tenant_id__products__product_id__images_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+                "X-CSRF-Token"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_image_api_v1_tenants__tenant_id__products__product_id__images_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductImageOut"] | unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reorder_images_api_v1_tenants__tenant_id__products__product_id__images_reorder_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+                "X-CSRF-Token"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReorderBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductImageOut"][] | unknown;
                 };
             };
             /** @description Validation Error */

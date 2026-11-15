@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
 from stockpilot.modules.access.public import ActorContext, Role, require_actor, require_csrf
+from stockpilot.modules.catalog.adapters.inbound.image_routes import primary_thumbnail_url
 from stockpilot.modules.catalog.adapters.outbound.repo import CatalogRepository
 from stockpilot.platform.http.problems import problem
 from stockpilot.platform.persistence.uow import UnitOfWork
@@ -32,6 +33,7 @@ class ProductOut(BaseModel):
     is_active: bool
     stock_warning_threshold: int
     version: int
+    primary_thumbnail_url: str | None = None
 
 
 class CreateProductBody(BaseModel):
@@ -70,6 +72,8 @@ def _parse_price(raw: str) -> int | Any:
 
 
 def _to_out(row: dict[str, Any]) -> ProductOut:
+    primary_id = row.get("primary_image_id")
+    tenant_id = UUID(str(row["tenant_id"]))
     return ProductOut(
         id=str(row["id"]),
         tenant_id=str(row["tenant_id"]),
@@ -79,6 +83,9 @@ def _to_out(row: dict[str, Any]) -> ProductOut:
         is_active=bool(row["is_active"]),
         stock_warning_threshold=int(row["stock_warning_threshold"]),
         version=int(row["version"]),
+        primary_thumbnail_url=primary_thumbnail_url(
+            tenant_id, UUID(str(primary_id)) if primary_id is not None else None
+        ),
     )
 
 

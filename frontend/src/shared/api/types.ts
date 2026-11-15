@@ -24,6 +24,7 @@ export type Product = {
   is_active: boolean;
   stock_warning_threshold: number;
   version: number;
+  primary_thumbnail_url?: string | null;
 };
 
 export type Customer = {

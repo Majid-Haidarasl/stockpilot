@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from stockpilot.bootstrap.health import router as health_router
 from stockpilot.modules.access.adapters.inbound.auth_routes import router as auth_router
 from stockpilot.modules.access.adapters.inbound.member_routes import router as member_router
+from stockpilot.modules.catalog.adapters.inbound.image_routes import router as catalog_images_router
 from stockpilot.modules.catalog.adapters.inbound.routes import router as catalog_router
 from stockpilot.modules.inventory.adapters.inbound.routes import router as inventory_router
 from stockpilot.modules.sales.adapters.inbound.customer_routes import router as customer_router
@@ -31,6 +32,7 @@ def create_app() -> FastAPI:
     app.include_router(auth_router)
     app.include_router(member_router)
     app.include_router(catalog_router)
+    app.include_router(catalog_images_router)
     app.include_router(customer_router)
     app.include_router(order_router)
     app.include_router(dashboard_router)

@@ -92,7 +92,7 @@ services:
       target: runtime
     environment:
       STOCKPILOT_DATABASE_URL: postgresql+psycopg://stockpilot_app:${STOCKPILOT_APP_PASSWORD:-app_dev_change_me}@postgres:5432/stockpilot
-      STOCKPILOT_EXPECTED_SCHEMA_REVISION: 0008_audit_log_seq
+      STOCKPILOT_EXPECTED_SCHEMA_REVISION: 0009_product_images
       STOCKPILOT_ENVIRONMENT: development
       STOCKPILOT_OIDC_ISSUER: ${STOCKPILOT_OIDC_ISSUER:-http://localhost:8180/realms/stockpilot}
       STOCKPILOT_OIDC_METADATA_URL: http://keycloak:8080/realms/stockpilot/.well-known/openid-configuration
@@ -105,6 +105,9 @@ services:
       STOCKPILOT_FRONTEND_DEFAULT_URL: ${STOCKPILOT_FRONTEND_DEFAULT_URL:-http://localhost:5173}
       STOCKPILOT_APP_PUBLIC_ORIGIN: ${STOCKPILOT_APP_PUBLIC_ORIGIN:-http://localhost:8200}
       STOCKPILOT_TOKEN_ENCRYPTION_KEY: ${STOCKPILOT_TOKEN_ENCRYPTION_KEY:-dev-only-fernet-key-32bytes-long!!}
+      STOCKPILOT_MEDIA_DIR: /var/lib/stockpilot/media
+    volumes:
+      - stockpilot_media:/var/lib/stockpilot/media
     depends_on:
       postgres:
         condition: service_healthy
@@ -139,7 +142,8 @@ services:
       STOCKPILOT_TEST_DATABASE_NAME: stockpilot_test
       STOCKPILOT_MIGRATION_DATABASE_URL: postgresql+psycopg://stockpilot_migrator:${STOCKPILOT_MIGRATOR_PASSWORD:-migrator_dev_change_me}@postgres:5432/stockpilot_test
       STOCKPILOT_DATABASE_URL: postgresql+psycopg://stockpilot_app:${STOCKPILOT_APP_PASSWORD:-app_dev_change_me}@postgres:5432/stockpilot_test
-      STOCKPILOT_EXPECTED_SCHEMA_REVISION: 0008_audit_log_seq
+      STOCKPILOT_EXPECTED_SCHEMA_REVISION: 0009_product_images
+      STOCKPILOT_MEDIA_DIR: /tmp/stockpilot-media-test
     depends_on:
       postgres:
         condition: service_healthy
@@ -185,3 +189,4 @@ networks:
 
 volumes:
   postgres_data:
+  stockpilot_media:
