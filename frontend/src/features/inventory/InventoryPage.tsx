@@ -1,7 +1,7 @@
-import { Alert, Box, Button, MenuItem, Stack, TextField, Typography } from "@mui/material";
+import { Alert, Box, Button, MenuItem, TextField, Typography } from "@mui/material";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { FormEvent } from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import {
   apiFetch,
@@ -10,15 +10,23 @@ import {
   type InventoryMovement,
   type Product,
 } from "../../shared/api";
+import { toPersianDigits } from "../../shared/money";
 import { statusFromQueryError } from "../../shared/pageStatus";
 import { queryKeys } from "../../shared/query/keys";
+import { formatTehranDateTime } from "../../shared/tehranDisplay";
 import { getTenant } from "../../shared/tenant";
 import {
+  DataTable,
   EmptyState,
   ErrorState,
   ForbiddenState,
+  isLowStock,
   LoadingState,
+  LowStockMark,
+  OutOfStockChip,
+  SectionCard,
   TenantShell,
+  type DataTableColumn,
 } from "../../shared/ui";
 import { canWriteInventory, INVENTORY_WRITE_DENIED_MESSAGE } from "./inventoryPermissions";
 
@@ -33,6 +41,7 @@ export function InventoryPage() {
   const [reason, setReason] = useState("");
   const [mode, setMode] = useState<"receipt" | "adjustment">("receipt");
   const [formError, setFormError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
 
   const inventoryQuery = useQuery({
     queryKey: queryKeys.inventory(tenantId),
@@ -107,6 +116,15 @@ export function InventoryPage() {
     await saveMutation.mutateAsync();
   }
 
+  const filteredItems = useMemo(() => {
+    const items = inventoryQuery.data ?? [];
+    const q = search.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter(
+      (item) => item.title.toLowerCase().includes(q) || item.sku.toLowerCase().includes(q),
+    );
+  }, [inventoryQuery.data, search]);
+
   const loading = inventoryQuery.isPending || movementsQuery.isPending;
   const firstError = inventoryQuery.error ?? movementsQuery.error;
 
@@ -137,9 +155,85 @@ export function InventoryPage() {
     );
   }
 
-  const items = inventoryQuery.data ?? [];
   const movements = movementsQuery.data ?? [];
   const products = productsQuery.data ?? [];
+
+  const positionColumns: DataTableColumn<InventoryItem>[] = [
+    {
+      id: "title",
+      header: "کالا",
+      render: (item) => (
+        <Box>
+          <Typography sx={{ fontWeight: 600 }}>{item.title}</Typography>
+          <Typography variant="body2" color="text.secondary" dir="ltr">
+            {item.sku}
+          </Typography>
+        </Box>
+      ),
+    },
+    {
+      id: "on_hand",
+      header: "فیزیکی",
+      render: (item) => toPersianDigits(String(item.on_hand)),
+    },
+    {
+      id: "reserved",
+      header: "رزرو",
+      render: (item) => toPersianDigits(String(item.reserved)),
+    },
+    {
+      id: "available",
+      header: "قابل فروش",
+      render: (item) => toPersianDigits(String(item.available)),
+    },
+    {
+      id: "stock_status",
+      header: "وضعیت",
+      render: (item) => (
+        <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", alignItems: "center" }}>
+          <OutOfStockChip show={item.available <= 0} />
+          <LowStockMark
+            show={item.available > 0 && isLowStock(item.available, item.stock_warning_threshold)}
+          />
+        </Box>
+      ),
+    },
+  ];
+
+  const movementColumns: DataTableColumn<InventoryMovement>[] = [
+    {
+      id: "title",
+      header: "کالا",
+      render: (m) => (
+        <Box>
+          <Typography sx={{ fontWeight: 600 }}>{m.title}</Typography>
+          <Typography variant="body2" color="text.secondary" dir="ltr">
+            {m.sku}
+          </Typography>
+        </Box>
+      ),
+    },
+    {
+      id: "physical",
+      header: "فیزیکی",
+      render: (m) => toPersianDigits(String(m.physical_delta)),
+    },
+    {
+      id: "reserved",
+      header: "رزرو",
+      render: (m) => toPersianDigits(String(m.reserved_delta)),
+    },
+    {
+      id: "reason",
+      header: "دلیل",
+      render: (m) => m.reason,
+    },
+    {
+      id: "when",
+      header: "زمان",
+      render: (m) => formatTehranDateTime(m.created_at),
+    },
+  ];
 
   return (
     <TenantShell title="موجودی">
@@ -150,110 +244,128 @@ export function InventoryPage() {
       ) : null}
 
       {canWrite ? (
-        <Box component="form" onSubmit={(e) => void onSubmit(e)} sx={{ mb: 3, display: "grid", gap: 1.5 }}>
-          <Typography variant="subtitle1" component="h2">
-            ثبت رسید / تعدیل
-          </Typography>
-          <TextField
-            select
-            label="نوع"
-            value={mode}
-            onChange={(e) => setMode(e.target.value as "receipt" | "adjustment")}
-          >
-            <MenuItem value="receipt">رسید ورود</MenuItem>
-            <MenuItem value="adjustment">تعدیل</MenuItem>
-          </TextField>
-          <TextField
-            select
-            label="کالا"
-            value={productId}
-            onChange={(e) => setProductId(e.target.value)}
-            required
-          >
-            {products.map((product) => (
-              <MenuItem key={product.id} value={product.id}>
-                {product.title} ({product.sku})
-              </MenuItem>
-            ))}
-          </TextField>
-          <TextField
-            label={mode === "receipt" ? "تعداد (مثبت)" : "تعداد (مثبت یا منفی)"}
-            value={quantity}
-            onChange={(e) => setQuantity(e.target.value)}
-            required
-          />
-          <TextField
-            label="مرجع"
-            value={reference}
-            onChange={(e) => setReference(e.target.value)}
-            required={mode === "receipt"}
-          />
-          {mode === "adjustment" ? (
+        <SectionCard>
+          <Box component="form" onSubmit={(e) => void onSubmit(e)} sx={{ display: "grid", gap: 1.5 }}>
+            <Typography variant="subtitle1" component="h2" sx={{ fontWeight: 600 }}>
+              ثبت رسید / تعدیل
+            </Typography>
             <TextField
-              label="دلیل (الزامی)"
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
+              select
+              label="نوع"
+              value={mode}
+              onChange={(e) => setMode(e.target.value as "receipt" | "adjustment")}
+            >
+              <MenuItem value="receipt">رسید ورود</MenuItem>
+              <MenuItem value="adjustment">تعدیل</MenuItem>
+            </TextField>
+            <TextField
+              select
+              label="کالا"
+              value={productId}
+              onChange={(e) => setProductId(e.target.value)}
+              required
+            >
+              {products.map((product) => (
+                <MenuItem key={product.id} value={product.id}>
+                  {product.title} ({product.sku})
+                </MenuItem>
+              ))}
+            </TextField>
+            <TextField
+              label={mode === "receipt" ? "تعداد (مثبت)" : "تعداد (مثبت یا منفی)"}
+              value={quantity}
+              onChange={(e) => setQuantity(e.target.value)}
               required
             />
-          ) : null}
-          <Button type="submit" variant="contained" disabled={saveMutation.isPending || !productId}>
-            ذخیره
-          </Button>
-        </Box>
+            <TextField
+              label="مرجع"
+              value={reference}
+              onChange={(e) => setReference(e.target.value)}
+              required={mode === "receipt"}
+            />
+            {mode === "adjustment" ? (
+              <TextField
+                label="دلیل (الزامی)"
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                required
+              />
+            ) : null}
+            <Button type="submit" variant="contained" disabled={saveMutation.isPending || !productId}>
+              ذخیره
+            </Button>
+          </Box>
+        </SectionCard>
       ) : (
         <Alert severity="warning" sx={{ mb: 3 }} role="status" data-testid="inventory-write-denied">
           {INVENTORY_WRITE_DENIED_MESSAGE}
         </Alert>
       )}
 
-      <Typography variant="h6" component="h2" sx={{ mb: 1, fontWeight: 700 }}>
+      <Typography variant="h6" component="h2" sx={{ mt: 3, mb: 1, fontWeight: 700 }}>
         موقعیت‌های موجودی
       </Typography>
-      <Box sx={{ mb: 3 }}>
-        {items.length === 0 ? (
-          <EmptyState message="هنوز موجودی ثبت نشده است." />
-        ) : (
-          <Stack spacing={1}>
-            {items.map((item) => (
-              <Box
-                key={`${item.product_id}-${item.warehouse_code}`}
-                sx={{ p: 2, bgcolor: "background.paper", borderRadius: 1 }}
-              >
-                <Typography sx={{ fontWeight: 600 }}>
-                  {item.title}{" "}
-                  <Box component="span" sx={{ direction: "ltr", display: "inline-block" }}>
-                    ({item.sku})
-                  </Box>
-                </Typography>
-                <Typography color="text.secondary">
-                  فیزیکی: {item.on_hand} · رزرو: {item.reserved} · قابل فروش: {item.available}
-                  {item.on_hand <= item.stock_warning_threshold ? " · هشدار کمبود" : ""}
-                </Typography>
+      <TextField
+        label="جستجوی موجودی"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        sx={{ mb: 2, maxWidth: 360 }}
+        fullWidth
+      />
+      <DataTable
+        columns={positionColumns}
+        rows={filteredItems}
+        rowKey={(item) => `${item.product_id}-${item.warehouse_code}`}
+        emptyMessage="هنوز موجودی ثبت نشده است."
+        renderMobileRow={(item) => (
+          <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 1 }}>
+            <Typography sx={{ fontWeight: 600 }}>
+              {item.title}{" "}
+              <Box component="span" sx={{ direction: "ltr", display: "inline-block" }}>
+                ({item.sku})
               </Box>
-            ))}
-          </Stack>
+            </Typography>
+            <Typography color="text.secondary" variant="body2">
+              فیزیکی: {toPersianDigits(String(item.on_hand))} · رزرو:{" "}
+              {toPersianDigits(String(item.reserved))} · قابل فروش:{" "}
+              {toPersianDigits(String(item.available))}
+            </Typography>
+            <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mt: 0.5 }}>
+              <OutOfStockChip show={item.available <= 0} />
+              <LowStockMark
+                show={item.available > 0 && isLowStock(item.available, item.stock_warning_threshold)}
+              />
+            </Box>
+          </Box>
         )}
-      </Box>
+      />
 
-      <Typography variant="h6" component="h2" sx={{ mb: 1, fontWeight: 700 }}>
+      <Typography variant="h6" component="h2" sx={{ mt: 3, mb: 1, fontWeight: 700 }}>
         دفتر حرکت موجودی
       </Typography>
       {movements.length === 0 ? (
         <EmptyState message="حرکتی ثبت نشده است." />
       ) : (
-        <Stack spacing={1}>
-          {movements.map((movement) => (
-            <Box key={movement.id} sx={{ p: 2, bgcolor: "background.paper", borderRadius: 1 }}>
+        <DataTable
+          columns={movementColumns}
+          rows={movements}
+          rowKey={(m) => m.id}
+          renderMobileRow={(m) => (
+            <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 1 }}>
               <Typography sx={{ fontWeight: 600 }}>
-                {movement.title} ({movement.sku})
+                {m.title} ({m.sku})
               </Typography>
-              <Typography color="text.secondary">
-                فیزیکی {movement.physical_delta} · رزرو {movement.reserved_delta} · {movement.reason}
-                {movement.reference ? ` · ${movement.reference}` : ""}
+              <Typography color="text.secondary" variant="body2">
+                فیزیکی {toPersianDigits(String(m.physical_delta))} · رزرو{" "}
+                {toPersianDigits(String(m.reserved_delta))} · {m.reason}
+                {m.reference ? ` · ${m.reference}` : ""}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                {formatTehranDateTime(m.created_at)}
               </Typography>
             </Box>
-          ))}
-        </Stack>
+          )}
+        />
       )}
     </TenantShell>
   );

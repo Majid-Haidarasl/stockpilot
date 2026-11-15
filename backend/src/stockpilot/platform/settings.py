@@ -18,7 +18,7 @@ class Settings(BaseSettings):
         alias="STOCKPILOT_DATABASE_URL",
     )
     expected_schema_revision: str = Field(
-        default="0007_idempotency_outbox",
+        default="0008_audit_log_seq",
         alias="STOCKPILOT_EXPECTED_SCHEMA_REVISION",
     )
 

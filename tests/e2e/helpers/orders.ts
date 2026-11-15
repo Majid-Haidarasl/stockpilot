@@ -16,26 +16,22 @@ export async function createDraftOrder(page: Page, quantity = "2"): Promise<stri
 }
 
 export async function clickAction(page: Page, name: "رزرو" | "تأیید" | "ارسال" | "لغو"): Promise<void> {
-  await page.getByTestId(
+  const testId =
     name === "رزرو"
       ? "action-reserve"
       : name === "تأیید"
         ? "action-confirm"
         : name === "ارسال"
           ? "action-ship"
-          : "action-cancel",
-  ).click();
+          : "action-cancel";
+  await page.getByTestId(testId).click();
+  // Cancel opens ConfirmDialog; request starts only after confirming «لغو سفارش».
+  if (name === "لغو") {
+    await page.getByRole("button", { name: "لغو سفارش" }).click();
+  }
   // Wait for in-flight to clear
   await page.waitForTimeout(500);
-  await page.getByTestId(
-    name === "رزرو"
-      ? "action-reserve"
-      : name === "تأیید"
-        ? "action-confirm"
-        : name === "ارسال"
-          ? "action-ship"
-          : "action-cancel",
-  ).waitFor({ state: "detached", timeout: 30_000 }).catch(() => undefined);
+  await page.getByTestId(testId).waitFor({ state: "detached", timeout: 30_000 }).catch(() => undefined);
 }
 
 export async function expectStatus(page: Page, label: string): Promise<void> {

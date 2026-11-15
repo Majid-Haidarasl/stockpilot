@@ -45,7 +45,13 @@ export type InventoryItem = {
   reserved: number;
   available: number;
   stock_warning_threshold: number;
+  /**
+   * Optimistic concurrency version for a real stock_positions row.
+   * When has_position is false, version is 0 and must not be used for writes.
+   */
   version: number;
+  /** False when the product has never received stock (no stock_positions row). */
+  has_position?: boolean;
 };
 
 export type InventoryMovement = {

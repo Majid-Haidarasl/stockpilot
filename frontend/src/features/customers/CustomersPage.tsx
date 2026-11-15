@@ -1,12 +1,22 @@
-import { Box, Button, Container, Stack, TextField, Typography } from "@mui/material";
+import { Box, Button, Stack, TextField, Typography } from "@mui/material";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { FormEvent } from "react";
-import { useState } from "react";
-import { Link as RouterLink, useParams } from "react-router-dom";
+import { useMemo, useState } from "react";
+import { useParams } from "react-router-dom";
 import { apiFetch, mapApiError, type Customer } from "../../shared/api";
 import { statusFromQueryError } from "../../shared/pageStatus";
 import { queryKeys } from "../../shared/query/keys";
-import { EmptyState, ErrorState, ForbiddenState, LoadingState } from "../../shared/ui";
+import {
+  DataTable,
+  ErrorState,
+  ForbiddenState,
+  LoadingState,
+  SectionCard,
+  TenantShell,
+  type DataTableColumn,
+} from "../../shared/ui";
+import { CustomerEditDialog } from "./CustomerEditDialog";
+import { filterCustomersBySearch } from "./customersFilter";
 
 export function CustomersPage() {
   const { tenantId = "" } = useParams();
@@ -14,6 +24,8 @@ export function CustomersPage() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [editing, setEditing] = useState<Customer | null>(null);
 
   const customersQuery = useQuery({
     queryKey: queryKeys.customers(tenantId),
@@ -45,62 +57,119 @@ export function CustomersPage() {
     await createMutation.mutateAsync();
   }
 
+  const filtered = useMemo(
+    () => filterCustomersBySearch(customersQuery.data ?? [], search),
+    [customersQuery.data, search],
+  );
+
   if (customersQuery.isPending) {
     return (
-      <Container maxWidth="md" sx={{ py: 4 }}>
+      <TenantShell title="مشتریان">
         <LoadingState />
-      </Container>
+      </TenantShell>
     );
   }
 
   if (customersQuery.isError) {
     const status = statusFromQueryError(customersQuery.error);
     return (
-      <Container maxWidth="md" sx={{ py: 4 }}>
+      <TenantShell title="مشتریان">
         {status.kind === "forbidden" ? (
           <ForbiddenState message={status.message} />
         ) : (
           <ErrorState message={status.message} onRetry={() => void customersQuery.refetch()} />
         )}
-      </Container>
+      </TenantShell>
     );
   }
 
-  const items = customersQuery.data ?? [];
+  const columns: DataTableColumn<Customer>[] = [
+    {
+      id: "name",
+      header: "نام",
+      render: (item) => item.name,
+    },
+    {
+      id: "phone",
+      header: "تلفن",
+      render: (item) => (
+        <Box component="span" dir="ltr" sx={{ display: "inline-block" }}>
+          {item.phone ?? "بدون تلفن"}
+        </Box>
+      ),
+    },
+    {
+      id: "actions",
+      header: "عملیات",
+      render: (item) => (
+        <Button
+          size="small"
+          onClick={() => setEditing(item)}
+          aria-label={`ویرایش ${item.name}`}
+        >
+          ویرایش
+        </Button>
+      ),
+    },
+  ];
 
   return (
-    <Container maxWidth="md" sx={{ py: 4 }}>
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-        <Typography variant="h5" sx={{ fontWeight: 700 }}>
-          مشتریان
-        </Typography>
-        <Button component={RouterLink} to={`/t/${tenantId}/products`}>
-          کالاها
-        </Button>
-      </Stack>
+    <TenantShell title="مشتریان">
+      {formError ? <ErrorState message={formError} showIllustration={false} /> : null}
 
-      {formError ? <ErrorState message={formError} /> : null}
+      <SectionCard>
+        <Box component="form" onSubmit={onCreate} sx={{ display: "grid", gap: 1.5 }}>
+          <Typography variant="subtitle1" component="h2" sx={{ fontWeight: 600 }}>
+            ثبت مشتری جدید
+          </Typography>
+          <TextField label="نام" value={name} onChange={(e) => setName(e.target.value)} required />
+          <TextField label="تلفن" value={phone} onChange={(e) => setPhone(e.target.value)} />
+          <Button type="submit" variant="contained" disabled={createMutation.isPending}>
+            ذخیره
+          </Button>
+        </Box>
+      </SectionCard>
 
-      <Box component="form" onSubmit={onCreate} sx={{ mb: 3, display: "grid", gap: 1.5 }}>
-        <TextField label="نام" value={name} onChange={(e) => setName(e.target.value)} required />
-        <TextField label="تلفن" value={phone} onChange={(e) => setPhone(e.target.value)} />
-        <Button type="submit" variant="contained" disabled={createMutation.isPending}>
-          ذخیره
-        </Button>
-      </Box>
+      <TextField
+        label="جستجوی مشتری"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        sx={{ my: 2, maxWidth: 360 }}
+        fullWidth
+      />
 
-      {items.length === 0 ? (
-        <EmptyState message="مشتری ثبت نشده است." />
-      ) : (
-        <Stack spacing={1}>
-          {items.map((item) => (
-            <Box key={item.id} sx={{ p: 2, bgcolor: "background.paper", borderRadius: 1 }}>
-              <Typography sx={{ fontWeight: 600 }}>{item.name}</Typography>
-              <Typography color="text.secondary">{item.phone ?? "بدون تلفن"}</Typography>
-            </Box>
-          ))}
-        </Stack>
-      )}
-    </Container>
+      <DataTable
+        columns={columns}
+        rows={filtered}
+        rowKey={(item) => item.id}
+        emptyMessage="مشتری ثبت نشده است."
+        renderMobileRow={(item) => (
+          <Stack
+            spacing={0.5}
+            sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 1 }}
+          >
+            <Typography sx={{ fontWeight: 600 }}>{item.name}</Typography>
+            <Typography variant="body2" color="text.secondary" dir="ltr">
+              {item.phone ?? "بدون تلفن"}
+            </Typography>
+            <Button
+              size="small"
+              onClick={() => setEditing(item)}
+              aria-label={`ویرایش ${item.name}`}
+              sx={{ alignSelf: "flex-start" }}
+            >
+              ویرایش
+            </Button>
+          </Stack>
+        )}
+      />
+
+      <CustomerEditDialog
+        open={Boolean(editing)}
+        tenantId={tenantId}
+        customer={editing}
+        onClose={() => setEditing(null)}
+      />
+    </TenantShell>
   );
 }

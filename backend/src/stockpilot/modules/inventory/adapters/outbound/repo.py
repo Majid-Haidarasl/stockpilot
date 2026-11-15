@@ -36,17 +36,25 @@ class InventoryRepository:
         return row is not None
 
     def list_positions(self, tenant_id: UUID) -> list[dict[str, Any]]:
+        """Active products with stock counters (zeros when no position row yet)."""
         rows = (
             self._conn.execute(
                 text(
                     """
-                SELECT sp.id, sp.tenant_id, sp.warehouse_code, sp.product_id,
-                       sp.on_hand, sp.reserved, sp.version,
+                SELECT sp.id AS position_id,
+                       p.tenant_id,
+                       COALESCE(sp.warehouse_code, 'main') AS warehouse_code,
+                       p.id AS product_id,
+                       COALESCE(sp.on_hand, 0) AS on_hand,
+                       COALESCE(sp.reserved, 0) AS reserved,
+                       COALESCE(sp.version, 0) AS version,
+                       (sp.id IS NOT NULL) AS has_position,
                        p.sku, p.title, p.stock_warning_threshold
-                FROM inventory.stock_positions sp
-                JOIN catalog.products p
-                  ON p.tenant_id = sp.tenant_id AND p.id = sp.product_id
-                WHERE sp.tenant_id = :tenant_id
+                FROM catalog.products p
+                LEFT JOIN inventory.stock_positions sp
+                  ON sp.tenant_id = p.tenant_id AND sp.product_id = p.id
+                WHERE p.tenant_id = :tenant_id
+                  AND p.is_active = true
                 ORDER BY p.sku
                 """
                 ),

@@ -286,7 +286,7 @@ class OrderRepository:
                 WHERE a.tenant_id = :tenant_id
                   AND a.entity_type = 'order'
                   AND a.entity_id = :order_id
-                ORDER BY a.created_at ASC, a.id ASC
+                ORDER BY a.seq ASC
                 """
                 ),
                 {"tenant_id": str(tenant_id), "order_id": str(order_id)},

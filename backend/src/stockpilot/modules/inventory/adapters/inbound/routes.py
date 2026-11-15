@@ -30,7 +30,9 @@ class InventoryItemOut(BaseModel):
     reserved: int
     available: int
     stock_warning_threshold: int
+    # When has_position is false, version is 0 and must not be used for writes.
     version: int
+    has_position: bool = True
 
 
 class MovementOut(BaseModel):
@@ -63,6 +65,8 @@ class AdjustmentBody(BaseModel):
 def _position_out(row: dict[str, Any]) -> InventoryItemOut:
     on_hand = int(row["on_hand"])
     reserved = int(row["reserved"])
+    has_position = bool(row.get("has_position", True))
+    version = int(row["version"]) if has_position else 0
     return InventoryItemOut(
         product_id=str(row["product_id"]),
         sku=str(row["sku"]),
@@ -72,7 +76,8 @@ def _position_out(row: dict[str, Any]) -> InventoryItemOut:
         reserved=reserved,
         available=on_hand - reserved,
         stock_warning_threshold=int(row["stock_warning_threshold"]),
-        version=int(row["version"]),
+        version=version,
+        has_position=has_position,
     )
 
 
@@ -215,7 +220,7 @@ def create_adjustment(
                     return problem(
                         status=409,
                         code="STOCK_INVARIANT",
-                        title="No stock position to decrease",
+                        title="برای این کالا هنوز موقعیت موجودی وجود ندارد. ابتدا رسید ثبت کنید.",
                     )
                 position = repo.ensure_position_for_update(
                     tenant_id=tenant_id,

@@ -1,9 +1,6 @@
-const PERSIAN_DIGITS = "۰۱۲۳۴۵۶۷۸۹";
+import { toPersianDigits } from "./persianDigits";
 
-/** Convert ASCII digits to Persian digits without coercing money to JS number. */
-export function toPersianDigits(value: string): string {
-  return value.replace(/\d/g, (digit) => PERSIAN_DIGITS[Number(digit)] ?? digit);
-}
+export { toPersianDigits } from "./persianDigits";
 
 /**
  * Format an integer rial amount string with Persian digit grouping.

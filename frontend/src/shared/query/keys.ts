@@ -9,6 +9,9 @@ export const queryKeys = {
     ["tenant", tenantId, "inventory", "movements"] as const,
   orders: (tenantId: string, status?: string | null) =>
     ["tenant", tenantId, "orders", status ?? "all"] as const,
+  /** Dashboard recent-orders strip — separate from full orders list cache. */
+  recentOrders: (tenantId: string, limit: number) =>
+    ["tenant", tenantId, "orders", "recent", limit] as const,
   order: (tenantId: string, orderId: string) =>
     ["tenant", tenantId, "orders", "detail", orderId] as const,
   orderTimeline: (tenantId: string, orderId: string) =>

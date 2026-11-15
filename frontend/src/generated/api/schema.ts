@@ -536,6 +536,11 @@ export interface components {
         InventoryItemOut: {
             /** Available */
             available: number;
+            /**
+             * Has Position
+             * @default true
+             */
+            has_position: boolean;
             /** On Hand */
             on_hand: number;
             /** Product Id */

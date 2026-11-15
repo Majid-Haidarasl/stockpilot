@@ -1,9 +1,12 @@
-import { TenantShell, EmptyState } from "../../shared/ui";
+import { EmptyState, TenantShell } from "../../shared/ui";
 
 export function NotificationsPage() {
   return (
-    <TenantShell title="اعلان‌ها">
-      <EmptyState message="هنوز اعلانی ندارید." />
+    <TenantShell title="اعلان‌ها" subtitle="صندوق اعلان‌های سازمان">
+      <EmptyState
+        illustration="inbox"
+        message="هنوز اعلانی ندارید."
+      />
     </TenantShell>
   );
 }

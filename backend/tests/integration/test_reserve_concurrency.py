@@ -232,9 +232,11 @@ def test_inactive_product_reserve_rejected_with_no_writes() -> None:
     with UnitOfWork(engine=runtime, user_id=user_id, tenant_id=tenant_id, role="sales") as uow:
         repo = InventoryRepository(uow.connection)
         assert repo.count_reservations_for_order(tenant_id, order_id) == 0
-        positions = repo.list_positions(tenant_id)
-        assert int(positions[0]["on_hand"]) == 10
-        assert int(positions[0]["reserved"]) == 0
+        # Inactive products are excluded from list_positions (active-only catalog join).
+        position = repo.get_position_for_update(tenant_id, products["SKU-OFF"])
+        assert position is not None
+        assert position.on_hand == 10
+        assert position.reserved == 0
         mov_count = uow.connection.execute(
             text(
                 "SELECT count(*) FROM inventory.movements "

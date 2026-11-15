@@ -294,6 +294,11 @@
             "title": "Available",
             "type": "integer"
           },
+          "has_position": {
+            "default": true,
+            "title": "Has Position",
+            "type": "boolean"
+          },
           "on_hand": {
             "title": "On Hand",
             "type": "integer"

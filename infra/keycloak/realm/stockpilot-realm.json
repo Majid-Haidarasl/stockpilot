@@ -7,6 +7,11 @@
   "resetPasswordAllowed": false,
   "editUsernameAllowed": false,
   "sslRequired": "none",
+  "loginTheme": "stockpilot",
+  "internationalizationEnabled": true,
+  "supportedLocales": ["fa"],
+  "defaultLocale": "fa",
+
   "roles": {
     "realm": [
       { "name": "default-roles-stockpilot", "composite": false }

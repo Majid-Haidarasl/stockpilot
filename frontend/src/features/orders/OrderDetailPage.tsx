@@ -1,37 +1,40 @@
-import { Box, Button, Container, Stack, Typography } from "@mui/material";
+import { Box, Button, Stack, Typography } from "@mui/material";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Link as RouterLink, useParams } from "react-router-dom";
 import {
   apiFetch,
   type Customer,
   type Order,
+  type OrderLine,
   type OrderTimelineEvent,
 } from "../../shared/api";
 import { formatRial, toPersianDigits } from "../../shared/money";
 import { statusFromQueryError } from "../../shared/pageStatus";
 import { queryKeys } from "../../shared/query/keys";
+import { formatTehranDateTime } from "../../shared/tehranDisplay";
 import { getTenant } from "../../shared/tenant";
-import { EmptyState, ErrorState, ForbiddenState, LoadingState } from "../../shared/ui";
+import {
+  ConfirmDialog,
+  DataTable,
+  EmptyState,
+  ErrorState,
+  ForbiddenState,
+  LoadingState,
+  SectionCard,
+  TenantShell,
+  type DataTableColumn,
+} from "../../shared/ui";
 import { allowedOrderActions } from "./allowedActions";
+import { OrderTimeline } from "./OrderTimeline";
 import { ReservationCountdown } from "./ReservationCountdown";
 import { OrderStatusBadge } from "./status";
-import { orderStatusLabel } from "./statusLabels";
 import { useOrderCycleAction } from "./useOrderCycleAction";
-
-const EVENT_LABELS: Record<string, string> = {
-  "order.draft_created": "ایجاد پیش‌نویس",
-  "order.draft_updated": "ویرایش پیش‌نویس",
-  "order.reserved": "رزرو",
-  "order.confirmed": "تأیید",
-  "order.cancelled": "لغو",
-  "order.shipped": "ارسال",
-  "order.expired": "انقضا",
-};
 
 export function OrderDetailPage() {
   const { tenantId = "", orderId = "" } = useParams();
   const role = getTenant()?.role ?? "viewer";
+  const [cancelOpen, setCancelOpen] = useState(false);
 
   const orderQuery = useQuery({
     queryKey: queryKeys.order(tenantId, orderId),
@@ -64,33 +67,39 @@ export function OrderDetailPage() {
 
   const cycle = useOrderCycleAction({ tenantId, orderId, titleBySku });
 
+  const listAction = (
+    <Button component={RouterLink} to={`/t/${tenantId}/orders`}>
+      فهرست
+    </Button>
+  );
+
   if (orderQuery.isPending) {
     return (
-      <Container maxWidth="md" sx={{ py: 4 }}>
+      <TenantShell title="جزئیات سفارش" actions={listAction}>
         <LoadingState />
-      </Container>
+      </TenantShell>
     );
   }
 
   if (orderQuery.isError) {
     const failure = statusFromQueryError(orderQuery.error);
     return (
-      <Container maxWidth="md" sx={{ py: 4 }}>
+      <TenantShell title="جزئیات سفارش" actions={listAction}>
         {failure.kind === "forbidden" ? (
           <ForbiddenState message={failure.message} />
         ) : (
           <ErrorState message={failure.message} onRetry={() => void orderQuery.refetch()} />
         )}
-      </Container>
+      </TenantShell>
     );
   }
 
   const order = orderQuery.data;
   if (!order) {
     return (
-      <Container maxWidth="md" sx={{ py: 4 }}>
+      <TenantShell title="جزئیات سفارش" actions={listAction}>
         <EmptyState message="سفارش یافت نشد." />
-      </Container>
+      </TenantShell>
     );
   }
 
@@ -100,49 +109,128 @@ export function OrderDetailPage() {
     customersQuery.data?.find((c) => c.id === order.customer_id)?.name ?? "مشتری";
   const busy = cycle.pendingAction !== null;
 
-  async function onAction(action: "reserve" | "confirm" | "cancel" | "ship") {
+  async function onAction(action: "reserve" | "confirm" | "ship") {
     await cycle.run(action, order.version);
   }
 
+  async function onConfirmCancel() {
+    setCancelOpen(false);
+    await cycle.run("cancel", order.version);
+  }
+
+  const lineColumns: DataTableColumn<OrderLine>[] = [
+    {
+      id: "title",
+      header: "کالا",
+      render: (line) => (
+        <Box>
+          <Typography sx={{ fontWeight: 600 }}>{line.product_title}</Typography>
+          <Typography variant="body2" color="text.secondary" dir="ltr">
+            {line.product_sku}
+          </Typography>
+        </Box>
+      ),
+    },
+    {
+      id: "qty",
+      header: "تعداد",
+      render: (line) => toPersianDigits(String(line.quantity)),
+    },
+    {
+      id: "price",
+      header: "قیمت واحد",
+      render: (line) => formatRial(line.unit_price.amount),
+    },
+  ];
+
   return (
-    <Container maxWidth="md" sx={{ py: 4 }}>
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-        <Typography variant="h5" sx={{ fontWeight: 700 }}>
-          جزئیات سفارش
-        </Typography>
-        <Button component={RouterLink} to={`/t/${tenantId}/orders`}>
-          فهرست
-        </Button>
-      </Stack>
+    <TenantShell title="جزئیات سفارش" actions={listAction}>
+      <SectionCard>
+        <Stack spacing={1.5}>
+          <Stack
+            direction={{ xs: "column", sm: "row" }}
+            spacing={1.5}
+            alignItems={{ sm: "center" }}
+            justifyContent="space-between"
+          >
+            <OrderStatusBadge status={order.status} />
+            <Typography variant="body2" color="text.secondary" dir="ltr">
+              {order.id}
+            </Typography>
+          </Stack>
+          <Typography>مشتری: {customerName}</Typography>
+          {order.status === "RESERVED" ? (
+            <>
+              {order.expires_at ? (
+                <Typography variant="body2">
+                  مهلت رزرو: {formatTehranDateTime(order.expires_at)}
+                </Typography>
+              ) : null}
+              <ReservationCountdown expiresAt={order.expires_at} />
+            </>
+          ) : null}
+          {cycle.errorMessage ? <ErrorState message={cycle.errorMessage} /> : null}
 
-      <Stack spacing={1.5} sx={{ mb: 3 }}>
-        <OrderStatusBadge status={order.status} />
-        <Typography>مشتری: {customerName}</Typography>
-        <Typography variant="body2" color="text.secondary" dir="ltr">
-          {order.id}
-        </Typography>
-        {order.status === "RESERVED" ? (
-          <>
-            {order.expires_at ? (
-              <Typography variant="body2">
-                مهلت رزرو:{" "}
-                <Box component="span" dir="ltr">
-                  {order.expires_at}
-                </Box>
-              </Typography>
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ pt: 1 }}>
+            {actions.reserve ? (
+              <Button
+                variant="contained"
+                disabled={busy}
+                onClick={() => void onAction("reserve")}
+                data-testid="action-reserve"
+              >
+                رزرو
+              </Button>
             ) : null}
-            <ReservationCountdown expiresAt={order.expires_at} />
-          </>
-        ) : null}
-        {cycle.errorMessage ? <ErrorState message={cycle.errorMessage} /> : null}
-      </Stack>
+            {actions.confirm ? (
+              <Button
+                variant="contained"
+                disabled={busy}
+                onClick={() => void onAction("confirm")}
+                data-testid="action-confirm"
+              >
+                تأیید
+              </Button>
+            ) : null}
+            {actions.ship ? (
+              <Button
+                variant="contained"
+                disabled={busy}
+                onClick={() => void onAction("ship")}
+                data-testid="action-ship"
+              >
+                ارسال
+              </Button>
+            ) : null}
+            {actions.cancel ? (
+              <Button
+                color="error"
+                disabled={busy}
+                onClick={() => setCancelOpen(true)}
+                data-testid="action-cancel"
+              >
+                لغو
+              </Button>
+            ) : null}
+          </Stack>
+          {cycle.lastConflictCode === "VERSION_CONFLICT" ? (
+            <Typography variant="body2" color="text.secondary">
+              داده تازه بارگذاری شد؛ در صورت نیاز دوباره اقدام کنید (ارسال خودکار انجام نمی‌شود).
+            </Typography>
+          ) : null}
+        </Stack>
+      </SectionCard>
 
-      <Typography variant="h6" sx={{ mb: 1, fontWeight: 600 }}>
+      <Typography variant="h6" sx={{ mt: 3, mb: 1, fontWeight: 600 }}>
         سطرهای سفارش {frozen ? "(قفل‌شده پس از رزرو)" : ""}
       </Typography>
-      <Stack spacing={1} sx={{ mb: 3 }}>
-        {order.lines.map((line) => (
-          <Box key={line.id} sx={{ p: 2, bgcolor: "background.paper", borderRadius: 1 }}>
+      <DataTable
+        columns={lineColumns}
+        rows={order.lines}
+        rowKey={(line) => line.id}
+        emptyMessage="سطری ثبت نشده است."
+        renderMobileRow={(line) => (
+          <Box sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 1 }}>
             <Typography sx={{ fontWeight: 600 }}>{line.product_title}</Typography>
             <Typography variant="body2" color="text.secondary" dir="ltr">
               {line.product_sku}
@@ -152,100 +240,36 @@ export function OrderDetailPage() {
               {formatRial(line.unit_price.amount)}
             </Typography>
           </Box>
-        ))}
-      </Stack>
+        )}
+      />
 
-      <Typography sx={{ mb: 2 }}>
+      <Typography sx={{ my: 2 }}>
         {order.total_is_estimate ? "جمع تخمینی (قیمت جاری): " : "جمع (قیمت فریزشده): "}
         {formatRial(order.total.amount)}
       </Typography>
 
-      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 4 }}>
-        {actions.reserve ? (
-          <Button
-            variant="contained"
-            disabled={busy}
-            onClick={() => void onAction("reserve")}
-            data-testid="action-reserve"
-          >
-            رزرو
-          </Button>
-        ) : null}
-        {actions.confirm ? (
-          <Button
-            variant="contained"
-            disabled={busy}
-            onClick={() => void onAction("confirm")}
-            data-testid="action-confirm"
-          >
-            تأیید
-          </Button>
-        ) : null}
-        {actions.ship ? (
-          <Button
-            variant="contained"
-            disabled={busy}
-            onClick={() => void onAction("ship")}
-            data-testid="action-ship"
-          >
-            ارسال
-          </Button>
-        ) : null}
-        {actions.cancel ? (
-          <Button
-            color="error"
-            disabled={busy}
-            onClick={() => void onAction("cancel")}
-            data-testid="action-cancel"
-          >
-            لغو
-          </Button>
-        ) : null}
-        {cycle.lastConflictCode === "VERSION_CONFLICT" ? (
-          <Typography variant="body2" color="text.secondary">
-            داده تازه بارگذاری شد؛ در صورت نیاز دوباره اقدام کنید (ارسال خودکار انجام نمی‌شود).
-          </Typography>
-        ) : null}
-      </Stack>
-
       <Typography variant="h6" sx={{ mb: 1, fontWeight: 600 }}>
         تاریخچه تغییرات
       </Typography>
-      {timelineQuery.isPending ? (
-        <LoadingState message="در حال بارگذاری تاریخچه…" />
-      ) : timelineQuery.isError ? (
-        <ErrorState message={statusFromQueryError(timelineQuery.error).message} />
-      ) : (timelineQuery.data ?? []).length === 0 ? (
-        <EmptyState message="رویدادی ثبت نشده است." />
-      ) : (
-        <Stack spacing={1} component="ol" sx={{ listStyle: "none", p: 0, m: 0 }}>
-          {(timelineQuery.data ?? []).map((event, index) => (
-            <Box
-              key={`${event.event_type}-${event.occurred_at}-${index}`}
-              component="li"
-              sx={{ p: 1.5, bgcolor: "background.paper", borderRadius: 1 }}
-            >
-              <Typography sx={{ fontWeight: 600 }}>
-                {EVENT_LABELS[event.event_type] ?? event.event_type}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                {event.actor_display_name ?? "سامانه"} ·{" "}
-                <Box component="span" dir="ltr">
-                  {event.occurred_at}
-                </Box>
-              </Typography>
-              {(event.from_status || event.to_status) && (
-                <Typography variant="body2">
-                  {event.from_status
-                    ? orderStatusLabel(event.from_status)
-                    : "—"}{" "}
-                  ← {event.to_status ? orderStatusLabel(event.to_status) : "—"}
-                </Typography>
-              )}
-            </Box>
-          ))}
-        </Stack>
-      )}
-    </Container>
+      <OrderTimeline
+        events={timelineQuery.data}
+        loading={timelineQuery.isPending}
+        errorMessage={
+          timelineQuery.isError ? statusFromQueryError(timelineQuery.error).message : null
+        }
+      />
+
+      <ConfirmDialog
+        open={cancelOpen}
+        title="لغو سفارش"
+        description="آیا از لغو این سفارش مطمئن هستید؟ موجودی رزروشده آزاد می‌شود."
+        confirmLabel="لغو سفارش"
+        cancelLabel="انصراف"
+        confirmColor="error"
+        confirming={cycle.pendingAction === "cancel"}
+        onConfirm={() => void onConfirmCancel()}
+        onCancel={() => setCancelOpen(false)}
+      />
+    </TenantShell>
   );
 }

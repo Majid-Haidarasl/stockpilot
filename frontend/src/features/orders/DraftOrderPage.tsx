@@ -1,7 +1,7 @@
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import {
   Box,
   Button,
-  Container,
   IconButton,
   MenuItem,
   Stack,
@@ -23,7 +23,20 @@ import { formatRial } from "../../shared/money";
 import { createIdempotentAction } from "../../shared/mutations/idempotentAction";
 import { statusFromQueryError } from "../../shared/pageStatus";
 import { queryKeys } from "../../shared/query/keys";
-import { EmptyState, ErrorState, ForbiddenState, LoadingState } from "../../shared/ui";
+import {
+  inventoryToStockMap,
+  isOutOfStock,
+  useInventoryStockMap,
+} from "../../shared/query/useInventoryStockMap";
+import {
+  EmptyState,
+  ErrorState,
+  ForbiddenState,
+  LoadingState,
+  OUT_OF_STOCK_LABEL,
+  SectionCard,
+  TenantShell,
+} from "../../shared/ui";
 import {
   hasDraftErrors,
   validateDraftForm,
@@ -34,6 +47,8 @@ import {
 function emptyLine(): DraftLineInput {
   return { productId: "", quantity: "1" };
 }
+
+const STICKY_FOOTER_HEIGHT_XS = 72;
 
 export function DraftOrderPage() {
   const { tenantId = "" } = useParams();
@@ -55,6 +70,16 @@ export function DraftOrderPage() {
     queryFn: () => apiFetch<Product[]>(`/api/v1/tenants/${tenantId}/products`),
     enabled: Boolean(tenantId),
   });
+
+  const inventoryQuery = useInventoryStockMap(tenantId, Boolean(tenantId));
+  const stockMap = useMemo(
+    () =>
+      inventoryQuery.isSuccess
+        ? inventoryToStockMap(inventoryQuery.data)
+        : new Map(),
+    [inventoryQuery.isSuccess, inventoryQuery.data],
+  );
+  const showStockChips = inventoryQuery.isSuccess;
 
   const productsById = useMemo(() => {
     const map = new Map<string, Product>();
@@ -108,11 +133,17 @@ export function DraftOrderPage() {
     await createMutation.mutateAsync();
   }
 
+  const listAction = (
+    <Button component={RouterLink} to={`/t/${tenantId}/orders`}>
+      فهرست سفارش‌ها
+    </Button>
+  );
+
   if (customersQuery.isPending || productsQuery.isPending) {
     return (
-      <Container maxWidth="md" sx={{ py: 4 }}>
+      <TenantShell title="سفارش پیش‌نویس" actions={listAction}>
         <LoadingState />
-      </Container>
+      </TenantShell>
     );
   }
 
@@ -120,13 +151,13 @@ export function DraftOrderPage() {
     const err = customersQuery.error ?? productsQuery.error;
     const failure = statusFromQueryError(err);
     return (
-      <Container maxWidth="md" sx={{ py: 4 }}>
+      <TenantShell title="سفارش پیش‌نویس" actions={listAction}>
         {failure.kind === "forbidden" ? (
           <ForbiddenState message={failure.message} />
         ) : (
           <ErrorState message={failure.message} />
         )}
-      </Container>
+      </TenantShell>
     );
   }
 
@@ -134,117 +165,154 @@ export function DraftOrderPage() {
   const products = (productsQuery.data ?? []).filter((p) => p.is_active);
 
   return (
-    <Container maxWidth="md" sx={{ py: 4 }}>
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-        <Typography variant="h5" sx={{ fontWeight: 700 }}>
-          سفارش پیش‌نویس
-        </Typography>
-        <Button component={RouterLink} to={`/t/${tenantId}/orders`}>
-          فهرست سفارش‌ها
-        </Button>
-      </Stack>
-
+    <TenantShell title="سفارش پیش‌نویس" actions={listAction}>
       {formError ? <ErrorState message={formError} /> : null}
 
       {customers.length === 0 || products.length === 0 ? (
         <EmptyState message="برای ایجاد سفارش، مشتری و کالای فعال لازم است." />
       ) : (
-        <Box component="form" onSubmit={(e) => void onSubmit(e)} sx={{ display: "grid", gap: 2 }}>
-          <TextField
-            select
-            label="مشتری"
-            value={customerId}
-            onChange={(e) => setCustomerId(e.target.value)}
-            error={Boolean(fieldErrors.customerId)}
-            helperText={fieldErrors.customerId}
-            required
-          >
-            {customers.map((c) => (
-              <MenuItem key={c.id} value={c.id}>
-                {c.name}
-              </MenuItem>
-            ))}
-          </TextField>
-
-          {fieldErrors.lines ? (
-            <Typography color="error" variant="body2">
-              {fieldErrors.lines}
+        <Box
+          component="form"
+          onSubmit={(e) => void onSubmit(e)}
+          sx={{
+            display: "grid",
+            gap: 2,
+            pb: { xs: `${STICKY_FOOTER_HEIGHT_XS + 16}px`, sm: 10 },
+          }}
+        >
+          <SectionCard>
+            <Typography variant="subtitle1" component="h2" sx={{ fontWeight: 600, mb: 1.5 }}>
+              مشتری
             </Typography>
-          ) : null}
+            <TextField
+              select
+              label="مشتری"
+              value={customerId}
+              onChange={(e) => setCustomerId(e.target.value)}
+              error={Boolean(fieldErrors.customerId)}
+              helperText={fieldErrors.customerId}
+              required
+              fullWidth
+            >
+              {customers.map((c) => (
+                <MenuItem key={c.id} value={c.id}>
+                  {c.name}
+                </MenuItem>
+              ))}
+            </TextField>
+          </SectionCard>
 
-          {lines.map((line, index) => {
-            const product = productsById.get(line.productId);
-            const lineErr = fieldErrors.lineErrors?.[index];
-            return (
-              <Stack
-                key={`line-${index}`}
-                direction={{ xs: "column", sm: "row" }}
-                spacing={1}
-                alignItems={{ sm: "flex-start" }}
-              >
-                <TextField
-                  select
-                  label="کالا"
-                  value={line.productId}
-                  onChange={(e) => {
-                    const next = [...lines];
-                    next[index] = { ...line, productId: e.target.value };
-                    setLines(next);
-                  }}
-                  error={Boolean(lineErr?.productId)}
-                  helperText={lineErr?.productId}
-                  sx={{ flex: 2 }}
-                >
-                  {products.map((p) => (
-                    <MenuItem key={p.id} value={p.id}>
-                      {p.title} ({p.sku})
-                    </MenuItem>
-                  ))}
-                </TextField>
-                <TextField
-                  label="تعداد"
-                  value={line.quantity}
-                  onChange={(e) => {
-                    const next = [...lines];
-                    next[index] = { ...line, quantity: e.target.value };
-                    setLines(next);
-                  }}
-                  error={Boolean(lineErr?.quantity)}
-                  helperText={lineErr?.quantity}
-                  inputProps={{ inputMode: "numeric", pattern: "[0-9]*" }}
-                  sx={{ flex: 1 }}
-                />
-                <Typography sx={{ minWidth: 140, pt: 1.5 }} color="text.secondary">
-                  {product ? formatRial(product.unit_price.amount) : "—"}
-                </Typography>
-                <IconButton
-                  aria-label="حذف سطر"
-                  onClick={() => setLines(lines.filter((_, i) => i !== index))}
-                  disabled={lines.length <= 1}
-                >
-                  ×
-                </IconButton>
-              </Stack>
-            );
-          })}
+          <SectionCard>
+            <Typography variant="subtitle1" component="h2" sx={{ fontWeight: 600, mb: 1.5 }}>
+              سطرهای سفارش
+            </Typography>
+            {fieldErrors.lines ? (
+              <Typography color="error" variant="body2" sx={{ mb: 1 }}>
+                {fieldErrors.lines}
+              </Typography>
+            ) : null}
 
-          <Button
-            type="button"
-            onClick={() => setLines([...lines, emptyLine()])}
-            disabled={lines.length >= 20}
+            <Stack spacing={1.5}>
+              {lines.map((line, index) => {
+                const product = productsById.get(line.productId);
+                const lineErr = fieldErrors.lineErrors?.[index];
+                return (
+                  <Stack
+                    key={`line-${index}`}
+                    direction={{ xs: "column", sm: "row" }}
+                    spacing={1}
+                    alignItems={{ sm: "flex-start" }}
+                  >
+                    <TextField
+                      select
+                      label="کالا"
+                      value={line.productId}
+                      onChange={(e) => {
+                        const next = [...lines];
+                        next[index] = { ...line, productId: e.target.value };
+                        setLines(next);
+                      }}
+                      error={Boolean(lineErr?.productId)}
+                      helperText={lineErr?.productId}
+                      sx={{ flex: 2 }}
+                      fullWidth
+                    >
+                      {products.map((p) => {
+                        const oos =
+                          showStockChips && isOutOfStock(stockMap.get(p.id));
+                        return (
+                          <MenuItem key={p.id} value={p.id}>
+                            {p.title} ({p.sku})
+                            {oos ? ` — ${OUT_OF_STOCK_LABEL}` : ""}
+                          </MenuItem>
+                        );
+                      })}
+                    </TextField>
+                    <TextField
+                      label="تعداد"
+                      value={line.quantity}
+                      onChange={(e) => {
+                        const next = [...lines];
+                        next[index] = { ...line, quantity: e.target.value };
+                        setLines(next);
+                      }}
+                      error={Boolean(lineErr?.quantity)}
+                      helperText={lineErr?.quantity}
+                      inputProps={{ inputMode: "numeric", pattern: "[0-9]*" }}
+                      sx={{ flex: 1 }}
+                    />
+                    <Typography sx={{ minWidth: 140, pt: { sm: 1.5 } }} color="text.secondary">
+                      {product ? formatRial(product.unit_price.amount) : "—"}
+                    </Typography>
+                    <IconButton
+                      aria-label="حذف سطر"
+                      onClick={() => setLines(lines.filter((_, i) => i !== index))}
+                      disabled={lines.length <= 1}
+                    >
+                      <DeleteOutlineIcon />
+                    </IconButton>
+                  </Stack>
+                );
+              })}
+            </Stack>
+
+            <Button
+              type="button"
+              onClick={() => setLines([...lines, emptyLine()])}
+              disabled={lines.length >= 20}
+              sx={{ mt: 1.5 }}
+            >
+              افزودن سطر
+            </Button>
+          </SectionCard>
+
+          <SectionCard>
+            <Typography variant="body2" color="text.secondary">
+              جمع تخمینی با قیمت جاری (قبل از رزرو): {formatRial(estimateTotal)}
+            </Typography>
+          </SectionCard>
+
+          <Box
+            sx={{
+              position: "sticky",
+              bottom: 0,
+              zIndex: 2,
+              mt: 1,
+              py: 1.5,
+              px: { xs: 0, sm: 0 },
+              bgcolor: "background.default",
+              borderTop: 1,
+              borderColor: "divider",
+              display: "flex",
+              justifyContent: "flex-end",
+            }}
           >
-            افزودن سطر
-          </Button>
-
-          <Typography variant="body2" color="text.secondary">
-            جمع تخمینی با قیمت جاری (قبل از رزرو): {formatRial(estimateTotal)}
-          </Typography>
-
-          <Button type="submit" variant="contained" disabled={createMutation.isPending}>
-            ذخیره پیش‌نویس
-          </Button>
+            <Button type="submit" variant="contained" disabled={createMutation.isPending} fullWidth={false}>
+              ذخیره پیش‌نویس
+            </Button>
+          </Box>
         </Box>
       )}
-    </Container>
+    </TenantShell>
   );
 }

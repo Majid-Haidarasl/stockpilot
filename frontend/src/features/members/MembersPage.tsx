@@ -15,11 +15,14 @@ import { statusFromQueryError } from "../../shared/pageStatus";
 import { queryKeys } from "../../shared/query/keys";
 import { getTenant } from "../../shared/tenant";
 import {
-  EmptyState,
+  DataTable,
   ErrorState,
   ForbiddenState,
   LoadingState,
+  RoleChip,
+  roleLabel,
   TenantShell,
+  type DataTableColumn,
 } from "../../shared/ui";
 import { isLastAdminDemotion } from "./lastAdmin";
 
@@ -29,6 +32,58 @@ const ROLES = [
   { value: "warehouse", label: "انبار" },
   { value: "viewer", label: "ناظر" },
 ] as const;
+
+function MemberRoleEditor({
+  member,
+  selected,
+  blocked,
+  isSelfLastAdmin,
+  saving,
+  onSelect,
+  onSave,
+}: {
+  member: Member;
+  selected: string;
+  blocked: boolean;
+  isSelfLastAdmin: boolean;
+  saving: boolean;
+  onSelect: (role: string) => void;
+  onSave: () => void;
+}) {
+  return (
+    <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems={{ sm: "center" }}>
+      <TextField
+        select
+        label="نقش"
+        value={selected}
+        onChange={(e) => onSelect(e.target.value)}
+        disabled={isSelfLastAdmin}
+        helperText={
+          isSelfLastAdmin ? "شما آخرین مدیر هستید؛ تغییر نقش خودتان غیرفعال است." : " "
+        }
+        sx={{ minWidth: 160 }}
+        size="small"
+      >
+        {ROLES.map((opt) => (
+          <MenuItem
+            key={opt.value}
+            value={opt.value}
+            disabled={isSelfLastAdmin && opt.value !== "admin"}
+          >
+            {opt.label}
+          </MenuItem>
+        ))}
+      </TextField>
+      <Button
+        variant="contained"
+        disabled={blocked || isSelfLastAdmin || selected === member.role || saving}
+        onClick={onSave}
+      >
+        ذخیره نقش
+      </Button>
+    </Stack>
+  );
+}
 
 export function MembersPage() {
   const { tenantId = "" } = useParams();
@@ -67,7 +122,10 @@ export function MembersPage() {
     },
   });
 
-  const members = useMemo(() => membersQuery.data ?? [], [membersQuery.data]);
+  const members = useMemo(
+    () => (Array.isArray(membersQuery.data) ? membersQuery.data : []),
+    [membersQuery.data],
+  );
   const adminCount = useMemo(
     () => members.filter((m) => m.role === "admin").length,
     [members],
@@ -102,6 +160,58 @@ export function MembersPage() {
     );
   }
 
+  function editorProps(member: Member) {
+    const selected = draftRoles[member.id] ?? member.role;
+    const blocked =
+      member.user_id === currentUserId && isLastAdminDemotion(members, member.id, selected);
+    const isSelfLastAdmin =
+      member.user_id === currentUserId && adminCount <= 1 && member.role === "admin";
+    return {
+      member,
+      selected,
+      blocked,
+      isSelfLastAdmin,
+      saving: savingId === member.id,
+      onSelect: (next: string) => setDraftRoles((prev) => ({ ...prev, [member.id]: next })),
+      onSave: () => {
+        setSavingId(member.id);
+        void patchMutation
+          .mutateAsync({ memberId: member.id, nextRole: selected })
+          .catch(() => undefined)
+          .finally(() => setSavingId(null));
+      },
+    };
+  }
+
+  const columns: DataTableColumn<Member>[] = [
+    {
+      id: "name",
+      header: "عضو",
+      render: (m) => (
+        <Box>
+          <Typography sx={{ fontWeight: 600 }}>
+            {m.display_name ?? m.email ?? m.user_id}
+          </Typography>
+          {m.email ? (
+            <Typography variant="body2" color="text.secondary" dir="ltr">
+              {m.email}
+            </Typography>
+          ) : null}
+        </Box>
+      ),
+    },
+    {
+      id: "role",
+      header: "نقش فعلی",
+      render: (m) => <RoleChip role={m.role} label={roleLabel(m.role)} />,
+    },
+    {
+      id: "actions",
+      header: "تغییر نقش",
+      render: (m) => <MemberRoleEditor {...editorProps(m)} />,
+    },
+  ];
+
   return (
     <TenantShell title="اعضای سازمان">
       <Alert severity="info" sx={{ mb: 2 }} role="status">
@@ -111,94 +221,40 @@ export function MembersPage() {
 
       {formError ? (
         <Box sx={{ mb: 2 }}>
-          <ErrorState message={formError} />
+          <ErrorState message={formError} showIllustration={false} />
         </Box>
       ) : null}
 
-      {members.length === 0 ? (
-        <EmptyState message="عضوی یافت نشد." />
-      ) : (
-        <Stack spacing={1.5}>
-          {members.map((member) => {
-            const selected = draftRoles[member.id] ?? member.role;
-            const blocked =
-              member.user_id === currentUserId &&
-              isLastAdminDemotion(members, member.id, selected);
-            const isSelfLastAdmin = member.user_id === currentUserId && adminCount <= 1 && member.role === "admin";
-
-            return (
-              <Box
-                key={member.id}
-                sx={{
-                  p: 2,
-                  bgcolor: "background.paper",
-                  borderRadius: 1,
-                  display: "grid",
-                  gap: 1.5,
-                }}
-              >
-                <Typography sx={{ fontWeight: 600 }}>
-                  {member.display_name ?? member.email ?? member.user_id}
-                </Typography>
-                {member.email ? (
-                  <Typography variant="body2" color="text.secondary" dir="ltr">
-                    {member.email}
+      <DataTable
+        columns={columns}
+        rows={members}
+        rowKey={(m) => m.id}
+        emptyMessage="عضوی یافت نشد."
+        renderMobileRow={(m) => {
+          const props = editorProps(m);
+          return (
+            <Stack
+              spacing={1.5}
+              sx={{ p: 1.5, border: 1, borderColor: "divider", borderRadius: 1 }}
+            >
+              <Stack direction="row" justifyContent="space-between" alignItems="flex-start" gap={1}>
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography sx={{ fontWeight: 600 }}>
+                    {m.display_name ?? m.email ?? m.user_id}
                   </Typography>
-                ) : null}
-                <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems={{ sm: "center" }}>
-                  <TextField
-                    select
-                    label="نقش"
-                    value={selected}
-                    onChange={(e) =>
-                      setDraftRoles((prev) => ({ ...prev, [member.id]: e.target.value }))
-                    }
-                    disabled={isSelfLastAdmin}
-                    helperText={
-                      isSelfLastAdmin
-                        ? "شما آخرین مدیر هستید؛ تغییر نقش خودتان غیرفعال است."
-                        : " "
-                    }
-                    sx={{ minWidth: 180 }}
-                  >
-                    {ROLES.map((opt) => (
-                      <MenuItem
-                        key={opt.value}
-                        value={opt.value}
-                        disabled={
-                          member.user_id === currentUserId &&
-                          member.role === "admin" &&
-                          adminCount <= 1 &&
-                          opt.value !== "admin"
-                        }
-                      >
-                        {opt.label}
-                      </MenuItem>
-                    ))}
-                  </TextField>
-                  <Button
-                    variant="contained"
-                    disabled={
-                      blocked ||
-                      isSelfLastAdmin ||
-                      selected === member.role ||
-                      savingId === member.id
-                    }
-                    onClick={() => {
-                      setSavingId(member.id);
-                      void patchMutation
-                        .mutateAsync({ memberId: member.id, nextRole: selected })
-                        .finally(() => setSavingId(null));
-                    }}
-                  >
-                    ذخیره نقش
-                  </Button>
-                </Stack>
-              </Box>
-            );
-          })}
-        </Stack>
-      )}
+                  {m.email ? (
+                    <Typography variant="body2" color="text.secondary" dir="ltr">
+                      {m.email}
+                    </Typography>
+                  ) : null}
+                </Box>
+                <RoleChip role={m.role} />
+              </Stack>
+              <MemberRoleEditor {...props} />
+            </Stack>
+          );
+        }}
+      />
     </TenantShell>
   );
 }

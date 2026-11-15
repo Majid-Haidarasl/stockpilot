@@ -44,7 +44,13 @@ export function mapApiProblem(
     case "INSUFFICIENT_STOCK":
       return formatStockMessage(asShortfalls(problem.errors, options.titleBySku));
     case "VERSION_CONFLICT":
-      return "نسخه داده تغییر کرده است. صفحه را تازه کنید و دوباره تلاش کنید.";
+      return "نسخه داده تغییر کرده است. اطلاعات تازه بارگذاری شد؛ دوباره تلاش کنید.";
+    case "STOCK_INVARIANT":
+      return (
+        problem.title?.trim() ||
+        problem.detail?.trim() ||
+        "عملیات با موجودی فعلی سازگار نیست."
+      );
     case "FORBIDDEN":
       return "اجازه انجام این کار را ندارید.";
     case "NOT_FOUND":
