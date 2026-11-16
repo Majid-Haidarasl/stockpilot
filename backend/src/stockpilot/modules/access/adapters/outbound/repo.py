@@ -383,6 +383,37 @@ class AccessRepository:
         )
         return [dict(r) for r in rows]
 
+    def list_user_ids_for_roles(
+        self, tenant_id: UUID, roles: frozenset[str] | set[str]
+    ) -> list[UUID]:
+        if not roles:
+            return []
+        role_list = sorted(roles)
+        placeholders = ", ".join(f":role_{i}" for i in range(len(role_list)))
+        params: dict[str, Any] = {"tenant_id": str(tenant_id)}
+        for i, role in enumerate(role_list):
+            params[f"role_{i}"] = role
+        rows = self._conn.execute(
+            text(
+                f"""
+                SELECT user_id
+                FROM access.memberships
+                WHERE tenant_id = :tenant_id
+                  AND role IN ({placeholders})
+                ORDER BY user_id
+                """
+            ),
+            params,
+        ).all()
+        return [UUID(str(r[0])) for r in rows]
+
+    def tenant_exists(self, tenant_id: UUID) -> bool:
+        row = self._conn.execute(
+            text("SELECT 1 FROM access.tenants WHERE id = :id"),
+            {"id": str(tenant_id)},
+        ).first()
+        return row is not None
+
     def count_admins(self, tenant_id: UUID) -> int:
         row = self._conn.execute(
             text(

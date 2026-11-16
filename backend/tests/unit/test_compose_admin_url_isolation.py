@@ -37,11 +37,26 @@ def test_admin_database_url_only_on_ops() -> None:
     text = _compose_text()
     ops = _service_block("ops", text)
     assert "STOCKPILOT_ADMIN_DATABASE_URL" in ops
-    for name in ("api", "relay", "migrate", "backend-checks"):
+    for name in ("api", "relay", "worker", "migrate", "backend-checks"):
         block = _service_block(name, text)
         assert "STOCKPILOT_ADMIN_DATABASE_URL" not in block, (
             f"{name} must not receive STOCKPILOT_ADMIN_DATABASE_URL"
         )
+
+
+def test_worker_service_uses_app_role_and_low_concurrency() -> None:
+    text = _compose_text()
+    worker = _service_block("worker", text)
+    assert "stockpilot_app" in worker
+    assert "STOCKPILOT_ADMIN_DATABASE_URL" not in worker
+    assert "--concurrency=2" in worker
+    assert "celery" in worker
+    deps = re.search(r"(?ms)depends_on:\n(.*?)(?=\n    [a-z]|\Z)", worker)
+    assert deps is not None
+    dep_block = deps.group(1)
+    assert "postgres" in dep_block
+    assert "migrate" in dep_block
+    assert "rabbitmq" in dep_block
 
 
 def test_api_ready_does_not_depend_on_rabbitmq() -> None:

@@ -260,6 +260,40 @@ export interface paths {
         patch: operations["patch_member_api_v1_tenants__tenant_id__members__member_id__patch"];
         trace?: never;
     };
+    "/api/v1/tenants/{tenant_id}/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Notifications */
+        get: operations["list_notifications_api_v1_tenants__tenant_id__notifications_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/notifications/{notification_id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark Notification Read */
+        post: operations["mark_notification_read_api_v1_tenants__tenant_id__notifications__notification_id__read_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tenants/{tenant_id}/orders": {
         parameters: {
             query?: never;
@@ -709,6 +743,23 @@ export interface components {
             sku: string;
             /** Title */
             title: string;
+        };
+        /** NotificationOut */
+        NotificationOut: {
+            /** Created At */
+            created_at?: string | null;
+            /** Data */
+            data?: {
+                [key: string]: unknown;
+            };
+            /** Id */
+            id: string;
+            /** Read At */
+            read_at?: string | null;
+            /** Tenant Id */
+            tenant_id: string;
+            /** Type */
+            type: string;
         };
         /** OrderLineIn */
         OrderLineIn: {
@@ -1455,6 +1506,76 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     } | unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_notifications_api_v1_tenants__tenant_id__notifications_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                unread_only?: boolean;
+                cursor_created_at?: string | null;
+                cursor_id?: string | null;
+            };
+            header?: never;
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationOut"][] | unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mark_notification_read_api_v1_tenants__tenant_id__notifications__notification_id__read_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-CSRF-Token"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                notification_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationOut"] | unknown;
                 };
             };
             /** @description Validation Error */

@@ -24,6 +24,10 @@ services:
     volumes:
       - ./backend/src:/app/src:ro
 
+  worker:
+    volumes:
+      - ./backend/src:/app/src:ro
+
   frontend-dev:
     ports:
       - "${FRONTEND_HOST_PORT:-5173}:5173"

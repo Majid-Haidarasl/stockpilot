@@ -121,4 +121,16 @@ ignore_imports = [
   "stockpilot.modules.sales.adapters.outbound.order_cycle -> stockpilot.modules.inventory.adapters.outbound.commands",
   "stockpilot.modules.sales.adapters.outbound.order_cycle -> stockpilot.modules.inventory.adapters.outbound.repo",
   "stockpilot.modules.inventory.adapters.inbound.routes -> stockpilot.modules.access.public",
+  "stockpilot.modules.notifications.adapters.inbound.routes -> stockpilot.modules.access.public",
+  "stockpilot.modules.notifications.adapters.outbound.consume_service -> stockpilot.modules.access.public",
+]
+
+[[tool.importlinter.contracts]]
+name = "Notifications must not import sales"
+type = "forbidden"
+source_modules = [
+  "stockpilot.modules.notifications",
+]
+forbidden_modules = [
+  "stockpilot.modules.sales",
 ]
