@@ -25,9 +25,17 @@ def create_celery_app(broker_url: str | None = None) -> Celery:
         task_reject_on_worker_lost=True,
         worker_prefetch_multiplier=1,
         broker_transport_options={"confirm_publish": True},
+        # AMQP connection heartbeat (Kombu/broker). Distinct from Celery *event*
+        # heartbeats disabled by compose `--without-heartbeat`.
+        broker_heartbeat=30.0,
         # No result backend in v1 — business truth stays in PostgreSQL.
         result_backend=None,
         task_ignore_result=True,
+        # RabbitMQ 4.x rejects Celery pidbox transient non-exclusive queues.
+        # v1 does not use remote control / Flower inspect.
+        worker_enable_remote_control=False,
+        worker_send_task_events=False,
+        task_send_sent_event=False,
         imports=("stockpilot.modules.notifications.adapters.inbound.tasks",),
     )
     return app

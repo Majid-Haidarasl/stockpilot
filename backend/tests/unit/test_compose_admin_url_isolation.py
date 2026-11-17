@@ -50,6 +50,7 @@ def test_worker_service_uses_app_role_and_low_concurrency() -> None:
     assert "stockpilot_app" in worker
     assert "STOCKPILOT_ADMIN_DATABASE_URL" not in worker
     assert "--concurrency=2" in worker
+    assert "--without-gossip" in worker
     assert "celery" in worker
     deps = re.search(r"(?ms)depends_on:\n(.*?)(?=\n    [a-z]|\Z)", worker)
     assert deps is not None
@@ -65,3 +66,16 @@ def test_api_ready_does_not_depend_on_rabbitmq() -> None:
     deps = re.search(r"(?ms)depends_on:\n(.*?)(?=\n    [a-z]|\Z)", api)
     assert deps is not None
     assert "rabbitmq" not in deps.group(1)
+
+
+def test_hang_hook_env_absent_from_compose() -> None:
+    text = _compose_text()
+    assert "STOCKPILOT_TEST_HANG_EVENT_ID" not in text
+
+
+def test_ops_has_celery_broker_url_api_does_not() -> None:
+    text = _compose_text()
+    ops = _service_block("ops", text)
+    assert "STOCKPILOT_CELERY_BROKER_URL" in ops
+    api = _service_block("api", text)
+    assert "STOCKPILOT_CELERY_BROKER_URL" not in api

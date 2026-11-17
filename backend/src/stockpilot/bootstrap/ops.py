@@ -6,7 +6,7 @@ import argparse
 import os
 import sys
 from pathlib import Path
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import Engine, create_engine, text
 
@@ -27,6 +27,7 @@ from stockpilot.modules.inventory.adapters.outbound.repo import InventoryReposit
 from stockpilot.modules.inventory.domain.models import DEFAULT_WAREHOUSE
 from stockpilot.modules.sales.adapters.outbound.customer_repo import CustomerRepository
 from stockpilot.platform.db_roles import ensure_stockpilot_relay
+from stockpilot.platform.failed_jobs.replay import replay_failed_jobs
 from stockpilot.platform.persistence.db import get_engine
 from stockpilot.platform.persistence.uow import UnitOfWork
 from stockpilot.platform.settings import get_settings
@@ -360,17 +361,22 @@ def cmd_seed_e2e(environment: str) -> None:
                     notes="seed-e2e",
                 )
 
-            reference = f"seed-e2e:{slug}:{_E2E_SKU}"
-            if not inventory.movement_exists(tenant_id, reference):
-                position = inventory.ensure_position_for_update(
-                    tenant_id=tenant_id, product_id=product_id
-                )
-                position.apply_receipt(_E2E_STOCK_QTY)
+            # Keep sellable stock topped up so repeated e2e runs do not starve reserves.
+            position = inventory.ensure_position_for_update(
+                tenant_id=tenant_id, product_id=product_id
+            )
+            available = int(position.on_hand) - int(position.reserved)
+            if available < _E2E_STOCK_QTY:
+                need = _E2E_STOCK_QTY - available
+                # Unique reference each run — same deficit amount must not collide
+                # with uq_movements_tenant_reference on repeated e2e bring-ups.
+                reference = f"seed-e2e:{slug}:{_E2E_SKU}:topup:{need}:{uuid4().hex[:12]}"
+                position.apply_receipt(need)
                 inventory.save_position(position)
                 inventory.insert_movement(
                     tenant_id=tenant_id,
                     product_id=product_id,
-                    physical_delta=_E2E_STOCK_QTY,
+                    physical_delta=need,
                     reserved_delta=0,
                     reason="seed-e2e receipt",
                     reference=reference,
@@ -436,6 +442,49 @@ def cmd_cleanup_test_tenants(environment: str) -> None:
         f"slugs={','.join(removed) if removed else '(none)'}",
         flush=True,
     )
+
+
+def cmd_replay_failed_jobs(
+    *,
+    job_id: str | None,
+    tenant_slug: str | None,
+    include_replayed: bool,
+    limit: int,
+    replayed_by: str | None,
+    confirm: bool,
+) -> None:
+    """Republish failed_jobs envelopes (same event_id). Dry-run unless --confirm."""
+    engine = _migration_engine()
+    broker = os.environ.get("STOCKPILOT_CELERY_BROKER_URL")
+    parsed_id: UUID | None = None
+    if job_id:
+        try:
+            parsed_id = UUID(job_id)
+        except ValueError as exc:
+            raise SystemExit(f"invalid --id: {job_id}") from exc
+    outcome = replay_failed_jobs(
+        engine=engine,
+        broker_url=broker,
+        job_id=parsed_id,
+        tenant_slug=tenant_slug,
+        include_replayed=include_replayed,
+        limit=limit,
+        replayed_by=replayed_by,
+        confirm=confirm,
+    )
+    mode = "confirm" if confirm else "dry-run"
+    print(
+        f"replay-failed-jobs mode={mode} selected={outcome.selected} "
+        f"dry_run={outcome.dry_run} replayed={outcome.replayed} "
+        f"skipped_unscoped={outcome.skipped_unscoped} "
+        f"skipped_replayed={outcome.skipped_replayed} "
+        f"skipped_no_envelope={outcome.skipped_no_envelope} "
+        f"failed={outcome.failed}"
+    )
+    for line in outcome.messages:
+        print(line)
+    if outcome.failed:
+        raise SystemExit(1)
 
 
 def cmd_import_product_images(
@@ -546,6 +595,29 @@ def main(argv: list[str] | None = None) -> None:
         help="Validate and report without writing images",
     )
 
+    replay = sub.add_parser(
+        "replay-failed-jobs",
+        help="Republish failed_jobs envelopes (same event_id); dry-run unless --confirm",
+    )
+    replay.add_argument("--id", dest="job_id", default=None, help="Single failed_jobs id")
+    replay.add_argument("--tenant-slug", default=None)
+    replay.add_argument(
+        "--include-replayed",
+        action="store_true",
+        help="Include rows with replayed_at set (default: skip them)",
+    )
+    replay.add_argument("--limit", type=int, default=20)
+    replay.add_argument(
+        "--replayed-by",
+        default=None,
+        help="Operator identity (required with --confirm)",
+    )
+    replay.add_argument(
+        "--confirm",
+        action="store_true",
+        help="Publish and mark replayed (default is dry-run)",
+    )
+
     args = parser.parse_args(argv)
     if args.command == "bootstrap":
         cmd_bootstrap(args.environment)
@@ -567,6 +639,15 @@ def main(argv: list[str] | None = None) -> None:
             zip_path=Path(args.zip_path),
             actor_email=args.actor_email,
             dry_run=bool(args.dry_run),
+        )
+    elif args.command == "replay-failed-jobs":
+        cmd_replay_failed_jobs(
+            job_id=args.job_id,
+            tenant_slug=args.tenant_slug,
+            include_replayed=bool(args.include_replayed),
+            limit=int(args.limit),
+            replayed_by=args.replayed_by,
+            confirm=bool(args.confirm),
         )
     else:
         raise SystemExit(f"Unknown command: {args.command}")

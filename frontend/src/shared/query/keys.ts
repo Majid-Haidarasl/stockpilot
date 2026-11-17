@@ -19,6 +19,14 @@ export const queryKeys = {
   dashboard: (tenantId: string, from: string, to: string) =>
     ["tenant", tenantId, "dashboard", from, to] as const,
   members: (tenantId: string) => ["tenant", tenantId, "members"] as const,
+  notifications: (
+    tenantId: string,
+    unreadOnly: boolean,
+    cursorId: string | null = null,
+  ) =>
+    ["tenant", tenantId, "notifications", unreadOnly ? "unread" : "all", cursorId ?? "first"] as const,
+  notificationsUnread: (tenantId: string) =>
+    ["tenant", tenantId, "notifications", "unread-badge"] as const,
   productImages: (tenantId: string, productId: string) =>
     ["tenant", tenantId, "products", productId, "images"] as const,
   /** Authenticated media blob object URLs (thumbnail/file paths). */

@@ -7,6 +7,7 @@ from typing import Any
 from celery.exceptions import MaxRetriesExceededError, Reject
 
 from stockpilot.bootstrap.celery_app import celery_app
+from stockpilot.modules.notifications.adapters.inbound.hang import maybe_hang_after_commit
 from stockpilot.modules.notifications.adapters.outbound.consume_service import (
     process_order_lifecycle_event,
     record_final_failure,
@@ -31,7 +32,10 @@ def deliver_order_lifecycle_event(self: Any, envelope: dict[str, Any]) -> dict[s
     try:
         if not isinstance(envelope, dict):
             raise PermanentConsumeError("Envelope must be an object")
-        return process_order_lifecycle_event(envelope)
+        result = process_order_lifecycle_event(envelope)
+        # After successful commit, optional test-only hang before Celery ack.
+        maybe_hang_after_commit(envelope)
+        return result
     except PermanentConsumeError as exc:
         env = envelope if isinstance(envelope, dict) else None
         try:

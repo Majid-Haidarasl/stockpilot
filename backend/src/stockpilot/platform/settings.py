@@ -18,7 +18,7 @@ class Settings(BaseSettings):
         alias="STOCKPILOT_DATABASE_URL",
     )
     expected_schema_revision: str = Field(
-        default="0011_inbox_notifications",
+        default="0012_failed_jobs_replay",
         alias="STOCKPILOT_EXPECTED_SCHEMA_REVISION",
     )
     outbox_batch_size: int = Field(default=50, alias="STOCKPILOT_OUTBOX_BATCH_SIZE")

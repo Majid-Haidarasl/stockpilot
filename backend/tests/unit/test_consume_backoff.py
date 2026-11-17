@@ -23,3 +23,7 @@ def test_celery_confirm_publish_enabled() -> None:
     assert celery_app.conf.task_acks_late is True
     assert celery_app.conf.task_reject_on_worker_lost is True
     assert celery_app.conf.worker_prefetch_multiplier == 1
+    assert celery_app.conf.worker_enable_remote_control is False
+    # AMQP broker heartbeat stays on; compose `--without-heartbeat` only
+    # disables Celery worker *event* heartbeats (pidbox/events), not this.
+    assert celery_app.conf.broker_heartbeat == 30.0

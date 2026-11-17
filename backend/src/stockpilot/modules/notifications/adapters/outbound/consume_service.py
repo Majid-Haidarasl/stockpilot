@@ -157,4 +157,5 @@ def record_final_failure(
         attempts=max(1, attempts),
         tenant_id=tenant_id,
         event_id=event_id,
+        envelope=envelope if isinstance(envelope, dict) else None,
     )

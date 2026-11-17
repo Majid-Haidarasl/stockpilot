@@ -11,6 +11,7 @@ import WarehouseOutlinedIcon from "@mui/icons-material/WarehouseOutlined";
 import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
 import {
   AppBar,
+  Badge,
   Box,
   Drawer,
   IconButton,
@@ -83,6 +84,18 @@ export function TenantShell({ title, children, actions, subtitle }: TenantShellP
     queryFn: () => apiFetch<MeResponse>("/api/v1/me"),
   });
 
+  const unreadQuery = useQuery({
+    queryKey: queryKeys.notificationsUnread(tenantId),
+    queryFn: () =>
+      apiFetch<{ id: string }[]>(
+        `/api/v1/tenants/${tenantId}/notifications?limit=100&unread_only=true`,
+      ),
+    enabled: Boolean(tenantId),
+    refetchInterval: 20_000,
+    refetchOnWindowFocus: true,
+  });
+  const unreadCount = unreadQuery.data?.length ?? 0;
+
   const userLabel =
     meQuery.data?.user?.display_name ??
     meQuery.data?.user?.email ??
@@ -124,7 +137,17 @@ export function TenantShell({ title, children, actions, subtitle }: TenantShellP
     {
       to: `/t/${tenantId}/notifications`,
       label: "اعلان‌ها",
-      icon: <NotificationsOutlinedIcon fontSize="small" />,
+      icon: (
+        <Badge
+          badgeContent={unreadCount}
+          color="error"
+          max={99}
+          overlap="circular"
+          invisible={unreadCount === 0}
+        >
+          <NotificationsOutlinedIcon fontSize="small" />
+        </Badge>
+      ),
     },
   ];
   if (isAdmin) {
@@ -339,7 +362,16 @@ export function TenantShell({ title, children, actions, subtitle }: TenantShellP
             aria-label="نمایش اعلان‌ها"
             color="inherit"
           >
-            <NotificationsOutlinedIcon />
+            <Badge
+              badgeContent={unreadCount}
+              color="error"
+              max={99}
+              overlap="circular"
+              invisible={unreadCount === 0}
+              data-testid="notifications-unread-badge"
+            >
+              <NotificationsOutlinedIcon />
+            </Badge>
           </IconButton>
 
           <IconButton

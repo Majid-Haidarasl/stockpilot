@@ -96,6 +96,8 @@ services:
       # Superuser URL for ensure-db-roles ONLY — never pass to api/relay/worker/migrate/checks.
       STOCKPILOT_ADMIN_DATABASE_URL: ${STOCKPILOT_ADMIN_DATABASE_URL:-postgresql+psycopg://postgres:postgres@postgres:5432/postgres}
       STOCKPILOT_RELAY_PASSWORD: ${STOCKPILOT_RELAY_PASSWORD:-relay_dev_change_me}
+      # Broker for ops replay-failed-jobs only (never on api).
+      STOCKPILOT_CELERY_BROKER_URL: amqp://${RABBITMQ_DEFAULT_USER:-stockpilot}:${RABBITMQ_DEFAULT_PASS:-rabbit_dev_change_me}@rabbitmq:5672//
       STOCKPILOT_MEDIA_DIR: /var/lib/stockpilot/media
       STOCKPILOT_OIDC_ISSUER: ${STOCKPILOT_OIDC_ISSUER:-http://localhost:8180/realms/stockpilot}
       STOCKPILOT_ENVIRONMENT: ${STOCKPILOT_ENVIRONMENT:-development}
@@ -103,7 +105,7 @@ services:
     volumes:
       - ./docs:/docs:ro
       - stockpilot_media:/var/lib/stockpilot/media
-    # Override command when running: bootstrap | seed-demo | balance-check | ensure-db-roles | import-product-images
+    # Override command when running: bootstrap | seed-demo | balance-check | ensure-db-roles | import-product-images | replay-failed-jobs
     command: ["python", "-m", "stockpilot.bootstrap.ops", "bootstrap", "--environment", "development"]
     depends_on:
       postgres:
@@ -118,7 +120,7 @@ services:
       target: runtime
     environment:
       STOCKPILOT_DATABASE_URL: postgresql+psycopg://stockpilot_app:${STOCKPILOT_APP_PASSWORD:-app_dev_change_me}@postgres:5432/stockpilot
-      STOCKPILOT_EXPECTED_SCHEMA_REVISION: 0011_inbox_notifications
+      STOCKPILOT_EXPECTED_SCHEMA_REVISION: 0012_failed_jobs_replay
       STOCKPILOT_ENVIRONMENT: development
       STOCKPILOT_OIDC_ISSUER: ${STOCKPILOT_OIDC_ISSUER:-http://localhost:8180/realms/stockpilot}
       STOCKPILOT_OIDC_METADATA_URL: http://keycloak:8080/realms/stockpilot/.well-known/openid-configuration
@@ -159,7 +161,7 @@ services:
       STOCKPILOT_OUTBOX_BATCH_SIZE: ${STOCKPILOT_OUTBOX_BATCH_SIZE:-50}
       STOCKPILOT_OUTBOX_LEASE_SECONDS: ${STOCKPILOT_OUTBOX_LEASE_SECONDS:-30}
       STOCKPILOT_RELAY_POLL_SECONDS: ${STOCKPILOT_RELAY_POLL_SECONDS:-1}
-      STOCKPILOT_EXPECTED_SCHEMA_REVISION: 0011_inbox_notifications
+      STOCKPILOT_EXPECTED_SCHEMA_REVISION: 0012_failed_jobs_replay
     command: ["python", "-m", "stockpilot.bootstrap.relay"]
     depends_on:
       postgres:
@@ -178,7 +180,7 @@ services:
     environment:
       STOCKPILOT_DATABASE_URL: postgresql+psycopg://stockpilot_app:${STOCKPILOT_APP_PASSWORD:-app_dev_change_me}@postgres:5432/stockpilot
       STOCKPILOT_CELERY_BROKER_URL: amqp://${RABBITMQ_DEFAULT_USER:-stockpilot}:${RABBITMQ_DEFAULT_PASS:-rabbit_dev_change_me}@rabbitmq:5672//
-      STOCKPILOT_EXPECTED_SCHEMA_REVISION: 0011_inbox_notifications
+      STOCKPILOT_EXPECTED_SCHEMA_REVISION: 0012_failed_jobs_replay
     command:
       [
         "celery",
@@ -187,6 +189,9 @@ services:
         "worker",
         "--loglevel=INFO",
         "--concurrency=2",
+        "--without-gossip",
+        "--without-mingle",
+        "--without-heartbeat",
       ]
     depends_on:
       postgres:
@@ -220,7 +225,7 @@ services:
       STOCKPILOT_RELAY_DATABASE_URL: postgresql+psycopg://stockpilot_relay:${STOCKPILOT_RELAY_PASSWORD:-relay_dev_change_me}@postgres:5432/stockpilot_test
       STOCKPILOT_RELAY_PASSWORD: ${STOCKPILOT_RELAY_PASSWORD:-relay_dev_change_me}
       STOCKPILOT_CELERY_BROKER_URL: amqp://${RABBITMQ_DEFAULT_USER:-stockpilot}:${RABBITMQ_DEFAULT_PASS:-rabbit_dev_change_me}@rabbitmq:5672//
-      STOCKPILOT_EXPECTED_SCHEMA_REVISION: 0011_inbox_notifications
+      STOCKPILOT_EXPECTED_SCHEMA_REVISION: 0012_failed_jobs_replay
       STOCKPILOT_MEDIA_DIR: /tmp/stockpilot-media-test
       STOCKPILOT_COMPOSE_PATH: /compose.yaml
     volumes:

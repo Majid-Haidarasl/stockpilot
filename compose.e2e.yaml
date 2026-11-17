@@ -16,6 +16,15 @@ services:
   migrate:
     environment:
       STOCKPILOT_MIGRATION_DATABASE_URL: postgresql+psycopg://stockpilot_migrator:${STOCKPILOT_MIGRATOR_PASSWORD:-migrator_dev_change_me}@postgres:5432/stockpilot_test
+      STOCKPILOT_EXPECTED_SCHEMA_REVISION: 0012_failed_jobs_replay
+    # Fail fast with a clear SCHEMA DRIFT message if DB revision != code head
+    # (e.g. stale migrate image left the e2e DB at 0009 while code is at 0012).
+    command:
+      [
+        "bash",
+        "-c",
+        "alembic upgrade head && python -m stockpilot.bootstrap.assert_schema_revision",
+      ]
     depends_on:
       e2e-ensure-db:
         condition: service_completed_successfully
@@ -23,6 +32,8 @@ services:
   ops:
     environment:
       STOCKPILOT_MIGRATION_DATABASE_URL: postgresql+psycopg://stockpilot_migrator:${STOCKPILOT_MIGRATOR_PASSWORD:-migrator_dev_change_me}@postgres:5432/stockpilot_test
+      STOCKPILOT_ADMIN_DATABASE_URL: postgresql+psycopg://${POSTGRES_SUPERUSER:-postgres}:${POSTGRES_SUPERUSER_PASSWORD:-postgres}@postgres:5432/postgres
+      STOCKPILOT_RELAY_PASSWORD: ${STOCKPILOT_RELAY_PASSWORD:-relay_dev_change_me}
       STOCKPILOT_OIDC_ISSUER: http://keycloak:8080/realms/stockpilot
       STOCKPILOT_ENVIRONMENT: test
 
@@ -41,6 +52,28 @@ services:
     depends_on:
       e2e-seed:
         condition: service_completed_successfully
+
+  relay:
+    environment:
+      STOCKPILOT_DATABASE_URL: postgresql+psycopg://stockpilot_relay:${STOCKPILOT_RELAY_PASSWORD:-relay_dev_change_me}@postgres:5432/stockpilot_test
+      STOCKPILOT_ENVIRONMENT: test
+      STOCKPILOT_EXPECTED_SCHEMA_REVISION: 0012_failed_jobs_replay
+    depends_on:
+      e2e-seed:
+        condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
+
+  worker:
+    environment:
+      STOCKPILOT_DATABASE_URL: postgresql+psycopg://stockpilot_app:${STOCKPILOT_APP_PASSWORD:-app_dev_change_me}@postgres:5432/stockpilot_test
+      STOCKPILOT_ENVIRONMENT: test
+      STOCKPILOT_EXPECTED_SCHEMA_REVISION: 0012_failed_jobs_replay
+    depends_on:
+      e2e-seed:
+        condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
 
   frontend-dev:
     environment:
@@ -68,9 +101,16 @@ services:
       target: runtime
     environment:
       STOCKPILOT_TEST_ADMIN_DATABASE_URL: postgresql+psycopg://${POSTGRES_SUPERUSER:-postgres}:${POSTGRES_SUPERUSER_PASSWORD:-postgres}@postgres:5432/postgres
+      # Same superuser URL for ops ensure-db-roles (old volumes may lack stockpilot_relay).
+      STOCKPILOT_ADMIN_DATABASE_URL: postgresql+psycopg://${POSTGRES_SUPERUSER:-postgres}:${POSTGRES_SUPERUSER_PASSWORD:-postgres}@postgres:5432/postgres
       STOCKPILOT_TEST_DATABASE_NAME: stockpilot_test
       STOCKPILOT_RELAY_PASSWORD: ${STOCKPILOT_RELAY_PASSWORD:-relay_dev_change_me}
-    command: ["python", "-m", "stockpilot.bootstrap.ensure_test_db"]
+    command:
+      [
+        "bash",
+        "-c",
+        "python -m stockpilot.bootstrap.ensure_test_db && python -m stockpilot.bootstrap.ops ensure-db-roles",
+      ]
     depends_on:
       postgres:
         condition: service_healthy
@@ -119,7 +159,7 @@ services:
       [
         "bash",
         "-c",
-        "npm install && for i in $(seq 1 60); do curl -sf http://edge-e2e/login >/dev/null && break; sleep 2; done && npx playwright test --reporter=list",
+        "npm install && for i in $(seq 1 60); do curl -sf http://edge-e2e/login >/dev/null && break; sleep 2; done && for i in $(seq 1 30); do curl -sf http://api:8000/health/ready >/dev/null && break; sleep 2; done && curl -sf http://api:8000/health/ready >/dev/null || { echo 'E2E fail-fast: API /health/ready not OK (schema drift or DB down)'; exit 1; } && npx playwright test --reporter=list",
       ]
 
 
@@ -132,6 +172,12 @@ services:
         condition: service_healthy
       e2e-seed:
         condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
+      relay:
+        condition: service_started
+      worker:
+        condition: service_started
     networks:
       - stockpilot
     restart: "no"
