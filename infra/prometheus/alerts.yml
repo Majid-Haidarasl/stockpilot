@@ -1,0 +1,81 @@
+groups:
+  - name: stockpilot-ops
+    rules:
+      - alert: StockpilotOutboxLagHigh
+        expr: stockpilot_outbox_oldest_unpublished_age_seconds > 60
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: Outbox lag high
+          description: Oldest unpublished Outbox age exceeds 60s.
+
+      - alert: StockpilotHeartbeatStaleScheduler
+        expr: |
+          stockpilot_heartbeat_present{service_name="scheduler"} == 0
+          or stockpilot_heartbeat_last_success_age_seconds{service_name="scheduler"} > 180
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: Scheduler heartbeat stale
+
+      - alert: StockpilotHeartbeatStaleRelay
+        expr: |
+          stockpilot_heartbeat_present{service_name="relay"} == 0
+          or stockpilot_heartbeat_last_success_age_seconds{service_name="relay"} > 180
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: Relay heartbeat stale
+
+      - alert: StockpilotHeartbeatStaleWorker
+        expr: |
+          stockpilot_heartbeat_present{service_name="worker"} == 0
+          or stockpilot_heartbeat_last_success_age_seconds{service_name="worker"} > 180
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: Worker heartbeat stale
+
+      - alert: StockpilotFailedJobsGrowing
+        expr: increase(stockpilot_failed_jobs_unreplayed_count[15m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: New unreplayed failed_jobs appeared
+
+      - alert: StockpilotQueueDepthHigh
+        expr: |
+          rabbitmq_detailed_queue_messages_ready{queue="celery",vhost="/"} > 100
+          or rabbitmq_detailed_queue_messages{queue="celery",vhost="/"} > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Celery queue depth high
+
+      - alert: StockpilotHttp5xxHigh
+        expr: |
+          (
+            sum(rate(stockpilot_http_requests_total{status_code=~"5.."}[5m]))
+            /
+            clamp_min(sum(rate(stockpilot_http_requests_total[5m])), 0.1)
+          ) > 0.01
+          and sum(rate(stockpilot_http_requests_total[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: API 5xx ratio high
+
+      - alert: StockpilotStaleReservedOrders
+        expr: stockpilot_stale_reserved_orders_count > 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: Stale RESERVED orders still held after expiry

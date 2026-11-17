@@ -7,7 +7,7 @@ import sys
 
 from sqlalchemy import create_engine, text
 
-from stockpilot.platform.db_roles import ensure_stockpilot_relay
+from stockpilot.platform.db_roles import ensure_stockpilot_metrics, ensure_stockpilot_relay
 
 
 def main() -> None:
@@ -18,10 +18,12 @@ def main() -> None:
 
     db_name = os.environ.get("STOCKPILOT_TEST_DATABASE_NAME", "stockpilot_test")
     relay_password = os.environ.get("STOCKPILOT_RELAY_PASSWORD", "relay_dev_change_me")
+    metrics_password = os.environ.get("STOCKPILOT_METRICS_PASSWORD", "metrics_dev_change_me")
     engine = create_engine(admin_url, isolation_level="AUTOCOMMIT", pool_pre_ping=True)
     with engine.connect() as conn:
-        # Role must exist before alembic 0010 grants (no CREATE ROLE in migrations).
+        # Role must exist before alembic grants (no CREATE ROLE in migrations).
         ensure_stockpilot_relay(conn, password=relay_password)
+        ensure_stockpilot_metrics(conn, password=metrics_password)
         exists = conn.execute(
             text("SELECT 1 FROM pg_database WHERE datname = :name"),
             {"name": db_name},
@@ -34,6 +36,7 @@ def main() -> None:
             print(f"database {db_name} already exists", flush=True)
         conn.execute(text(f'GRANT CONNECT ON DATABASE "{db_name}" TO stockpilot_app'))
         conn.execute(text(f'GRANT CONNECT ON DATABASE "{db_name}" TO stockpilot_relay'))
+        conn.execute(text(f'GRANT CONNECT ON DATABASE "{db_name}" TO stockpilot_metrics'))
 
     # Match init script privileges on public schema for existing volumes.
     db_engine = create_engine(

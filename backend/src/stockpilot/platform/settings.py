@@ -18,8 +18,17 @@ class Settings(BaseSettings):
         alias="STOCKPILOT_DATABASE_URL",
     )
     expected_schema_revision: str = Field(
-        default="0013_scheduler_heartbeats",
+        default="0014_ops_metrics",
         alias="STOCKPILOT_EXPECTED_SCHEMA_REVISION",
+    )
+    api_metrics_enabled: bool = Field(
+        default=False,
+        alias="STOCKPILOT_API_METRICS_ENABLED",
+    )
+    api_metrics_port: int = Field(default=8001, alias="STOCKPILOT_API_METRICS_PORT")
+    worker_idle_heartbeat_seconds: float = Field(
+        default=60.0,
+        alias="STOCKPILOT_WORKER_IDLE_HEARTBEAT_SECONDS",
     )
     outbox_batch_size: int = Field(default=50, alias="STOCKPILOT_OUTBOX_BATCH_SIZE")
     outbox_lease_seconds: int = Field(default=30, alias="STOCKPILOT_OUTBOX_LEASE_SECONDS")

@@ -12,13 +12,13 @@ from stockpilot.bootstrap.assert_schema_revision import (
 
 def test_code_alembic_head_is_single_revision() -> None:
     head = code_alembic_head()
-    assert head == "0013_scheduler_heartbeats"
+    assert head == "0014_ops_metrics"
 
 
 def test_assert_schema_at_head_rejects_lag(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "stockpilot.bootstrap.assert_schema_revision.code_alembic_head",
-        lambda **_: "0013_scheduler_heartbeats",
+        lambda **_: "0014_ops_metrics",
     )
     monkeypatch.setattr(
         "stockpilot.bootstrap.assert_schema_revision.fetch_db_revision",
@@ -27,26 +27,26 @@ def test_assert_schema_at_head_rejects_lag(monkeypatch: pytest.MonkeyPatch) -> N
     with pytest.raises(SystemExit, match="SCHEMA DRIFT") as exc:
         assert_schema_at_head(
             database_url="postgresql+psycopg://unused",
-            expected_revision="0013_scheduler_heartbeats",
+            expected_revision="0014_ops_metrics",
         )
     msg = str(exc.value)
     assert "0009_product_images" in msg
-    assert "0013_scheduler_heartbeats" in msg
+    assert "0014_ops_metrics" in msg
 
 
 def test_assert_schema_at_head_ok(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "stockpilot.bootstrap.assert_schema_revision.code_alembic_head",
-        lambda **_: "0013_scheduler_heartbeats",
+        lambda **_: "0014_ops_metrics",
     )
     monkeypatch.setattr(
         "stockpilot.bootstrap.assert_schema_revision.fetch_db_revision",
-        lambda _url: "0013_scheduler_heartbeats",
+        lambda _url: "0014_ops_metrics",
     )
     assert (
         assert_schema_at_head(
             database_url="postgresql+psycopg://unused",
-            expected_revision="0013_scheduler_heartbeats",
+            expected_revision="0014_ops_metrics",
         )
-        == "0013_scheduler_heartbeats"
+        == "0014_ops_metrics"
     )

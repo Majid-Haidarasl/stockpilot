@@ -93,9 +93,10 @@ The reservation-expiry `scheduler` service does **not** use RabbitMQ. It expires
 ### Checks
 
 1. `docker compose … ps` — `scheduler` health; `ops queue-signals` for heartbeats + Outbox lag.
-2. Confirm one scheduler replica only (V1). Session advisory lock: only one tick runs; the other logs `lock_not_acquired`.
-3. If RabbitMQ is down: orders should still expire and Outbox rows appear with `published_at IS NULL`; after broker+relay recovery, rows publish (same as queue outage recovery above).
-4. Logs: `scheduler_tenant_failed` with `tenant_id` means one org failed; others should still proceed.
+2. With profile `observability`: Grafana dashboard **StockPilot Ops** (`http://localhost:8300`) and alerts `StockpilotOutboxLagHigh` / heartbeat / failed_jobs / queue depth.
+3. Confirm one scheduler replica only (V1). Session advisory lock: only one tick runs; the other logs `lock_not_acquired`.
+4. If RabbitMQ is down: orders should still expire and Outbox rows appear with `published_at IS NULL`; after broker+relay recovery, rows publish (same as queue outage recovery above).
+5. Logs: `scheduler_tenant_failed` with `tenant_id` means one org failed; others should still proceed.
 
 ### Recovery
 

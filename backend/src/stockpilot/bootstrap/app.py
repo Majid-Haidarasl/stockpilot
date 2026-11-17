@@ -17,6 +17,7 @@ from stockpilot.modules.notifications.adapters.inbound.routes import (
 from stockpilot.modules.sales.adapters.inbound.customer_routes import router as customer_router
 from stockpilot.modules.sales.adapters.inbound.dashboard_routes import router as dashboard_router
 from stockpilot.modules.sales.adapters.inbound.order_routes import router as order_router
+from stockpilot.platform.observability.http_metrics import setup_http_metrics
 from stockpilot.platform.settings import get_settings
 
 
@@ -30,6 +31,12 @@ def create_app() -> FastAPI:
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+    )
+    # Middleware always; internal :8001 bind only when STOCKPILOT_API_METRICS_ENABLED.
+    setup_http_metrics(
+        app,
+        enabled=settings.api_metrics_enabled,
+        port=settings.api_metrics_port,
     )
     app.include_router(health_router)
     app.include_router(auth_router)

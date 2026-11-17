@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 
 from celery import Celery
+from celery.signals import worker_ready
 
 from stockpilot.platform.outbox.mapping import ORDER_LIFECYCLE_TASK
 
@@ -42,6 +43,24 @@ def create_celery_app(broker_url: str | None = None) -> Celery:
 
 
 celery_app = create_celery_app()
+
+
+def _start_idle_worker_heartbeat(**_kwargs: object) -> None:
+    """Refresh platform.heartbeats.worker while idle so stale alerts stay honest."""
+    from stockpilot.bootstrap.worker_heartbeat import (
+        DEFAULT_IDLE_INTERVAL_SECONDS,
+        start_idle_heartbeat_thread,
+    )
+    from stockpilot.platform.settings import get_settings
+
+    interval = get_settings().worker_idle_heartbeat_seconds
+    if interval <= 0:
+        interval = DEFAULT_IDLE_INTERVAL_SECONDS
+    start_idle_heartbeat_thread(interval_seconds=interval)
+
+
+worker_ready.connect(_start_idle_worker_heartbeat)
+
 
 # Re-export mapped name for discoverability / tests.
 __all__ = ["ORDER_LIFECYCLE_TASK", "celery_app", "create_celery_app"]
