@@ -28,6 +28,7 @@ from stockpilot.modules.inventory.domain.models import DEFAULT_WAREHOUSE
 from stockpilot.modules.sales.adapters.outbound.customer_repo import CustomerRepository
 from stockpilot.platform.db_roles import ensure_stockpilot_relay
 from stockpilot.platform.failed_jobs.replay import replay_failed_jobs
+from stockpilot.platform.heartbeats.store import fetch_outbox_lag
 from stockpilot.platform.persistence.db import get_engine
 from stockpilot.platform.persistence.uow import UnitOfWork
 from stockpilot.platform.settings import get_settings
@@ -444,6 +445,40 @@ def cmd_cleanup_test_tenants(environment: str) -> None:
     )
 
 
+def cmd_queue_signals() -> None:
+    """Print heartbeats + live Outbox lag (migrator; ops diagnostics)."""
+    engine = _migration_engine()
+    with engine.connect() as conn:
+        rows = (
+            conn.execute(
+                text(
+                    """
+                    SELECT service_name, last_success_at, details, updated_at
+                    FROM platform.heartbeats
+                    ORDER BY service_name
+                    """
+                )
+            )
+            .mappings()
+            .all()
+        )
+        unpublished_count, oldest_age = fetch_outbox_lag(conn)
+    print("queue-signals heartbeats:", flush=True)
+    if not rows:
+        print("  (none)", flush=True)
+    for row in rows:
+        print(
+            f"  {row['service_name']} last_success_at={row['last_success_at']} "
+            f"details={row['details']}",
+            flush=True,
+        )
+    print(
+        f"queue-signals lag unpublished_count={unpublished_count} "
+        f"oldest_unpublished_age_seconds={oldest_age}",
+        flush=True,
+    )
+
+
 def cmd_replay_failed_jobs(
     *,
     job_id: str | None,
@@ -595,6 +630,11 @@ def main(argv: list[str] | None = None) -> None:
         help="Validate and report without writing images",
     )
 
+    sub.add_parser(
+        "queue-signals",
+        help="Print platform.heartbeats rows and live Outbox lag (ops diagnostics)",
+    )
+
     replay = sub.add_parser(
         "replay-failed-jobs",
         help="Republish failed_jobs envelopes (same event_id); dry-run unless --confirm",
@@ -640,6 +680,8 @@ def main(argv: list[str] | None = None) -> None:
             actor_email=args.actor_email,
             dry_run=bool(args.dry_run),
         )
+    elif args.command == "queue-signals":
+        cmd_queue_signals()
     elif args.command == "replay-failed-jobs":
         cmd_replay_failed_jobs(
             job_id=args.job_id,

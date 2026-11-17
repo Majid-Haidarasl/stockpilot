@@ -43,4 +43,4 @@ RUN uv sync --frozen \
 ENV PATH="/app/.venv/bin:$PATH"
 USER app
 WORKDIR /app
-CMD ["bash", "-c", "python -m stockpilot.bootstrap.ensure_test_db && ruff check src tests && ruff format --check src tests && mypy && lint-imports && alembic upgrade head && python -m stockpilot.bootstrap.assert_schema_revision && pytest -q"]
+CMD ["bash", "-c", "python -m stockpilot.bootstrap.ensure_test_db && python -m stockpilot.bootstrap.ensure_rabbitmq_test_vhost && ruff check src tests && ruff format --check src tests && mypy && lint-imports && alembic upgrade head && python -m stockpilot.bootstrap.assert_schema_revision && pytest -q"]

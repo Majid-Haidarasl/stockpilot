@@ -13,6 +13,7 @@ from stockpilot.modules.notifications.adapters.outbound.repo import Notification
 from stockpilot.modules.notifications.application.errors import PermanentConsumeError
 from stockpilot.modules.notifications.application.recipients import recipient_roles_for_event
 from stockpilot.platform.failed_jobs.writer import record_failed_job
+from stockpilot.platform.heartbeats.store import upsert_heartbeat
 from stockpilot.platform.inbox.writer import CONSUMER_ORDER_LIFECYCLE, try_insert_inbox
 from stockpilot.platform.outbox.mapping import EVENT_TO_TASK, ORDER_LIFECYCLE_TASK
 from stockpilot.platform.persistence.db import get_engine
@@ -91,6 +92,11 @@ def process_order_lifecycle_event(
                     "consumer_name": CONSUMER_ORDER_LIFECYCLE,
                 },
             )
+            upsert_heartbeat(
+                uow.connection,
+                service_name="worker",
+                details={"event_id": str(event_id), "notifications": 0},
+            )
             return {
                 "accepted": True,
                 "duplicate": False,
@@ -116,6 +122,12 @@ def process_order_lifecycle_event(
                 inbox_consumer_name=CONSUMER_ORDER_LIFECYCLE,
                 inbox_event_id=event_id,
             )
+        # Cheap last-activity; same UoW already has app.role=worker for RLS.
+        upsert_heartbeat(
+            uow.connection,
+            service_name="worker",
+            details={"event_id": str(event_id), "notifications": len(recipients)},
+        )
         return {
             "accepted": True,
             "duplicate": False,

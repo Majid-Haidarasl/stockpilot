@@ -18,12 +18,18 @@ class Settings(BaseSettings):
         alias="STOCKPILOT_DATABASE_URL",
     )
     expected_schema_revision: str = Field(
-        default="0012_failed_jobs_replay",
+        default="0013_scheduler_heartbeats",
         alias="STOCKPILOT_EXPECTED_SCHEMA_REVISION",
     )
     outbox_batch_size: int = Field(default=50, alias="STOCKPILOT_OUTBOX_BATCH_SIZE")
     outbox_lease_seconds: int = Field(default=30, alias="STOCKPILOT_OUTBOX_LEASE_SECONDS")
     relay_poll_seconds: float = Field(default=1.0, alias="STOCKPILOT_RELAY_POLL_SECONDS")
+    scheduler_interval_seconds: float = Field(
+        default=60.0, alias="STOCKPILOT_SCHEDULER_INTERVAL_SECONDS"
+    )
+    scheduler_heartbeat_stale_seconds: float = Field(
+        default=180.0, alias="STOCKPILOT_SCHEDULER_HEARTBEAT_STALE_SECONDS"
+    )
     media_dir: str = Field(
         default="/var/lib/stockpilot/media",
         alias="STOCKPILOT_MEDIA_DIR",

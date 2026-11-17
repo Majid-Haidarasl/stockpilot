@@ -11,6 +11,7 @@ from datetime import timedelta
 
 from sqlalchemy import create_engine
 
+from stockpilot.platform.heartbeats.store import upsert_heartbeat
 from stockpilot.platform.outbox.claim import claim_batch, mark_published, record_publish_failure
 from stockpilot.platform.outbox.envelope import build_envelope
 from stockpilot.platform.outbox.mapping import UnknownEventTypeError, task_for_event_type
@@ -94,6 +95,12 @@ def run_once(
                 # Peer already marked — at-least-once double publish possible; Inbox in 5.2.
                 logger.info("already_published event_id=%s", row.event_id)
                 published += 1
+    # Cheap last-activity signal (RLS: service_name='relay' only).
+    try:
+        with engine.begin() as conn:
+            upsert_heartbeat(conn, service_name="relay", details={"published": published})
+    except Exception:  # noqa: BLE001 — heartbeat must not break relay
+        logger.exception("relay_heartbeat_failed")
     return published
 
 

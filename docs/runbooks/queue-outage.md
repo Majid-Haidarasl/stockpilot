@@ -27,7 +27,7 @@ RabbitMQ 4.x rejects Celery pidbox transient non-exclusive queues, so workers ru
 
 ## Checks
 
-1. Compose: `docker compose … ps` — `postgres`, `rabbitmq`, `relay`, `worker` healthy/started.
+1. Compose: `docker compose … ps` — `postgres`, `rabbitmq`, `relay`, `worker`, `scheduler` healthy/started.
 2. `GET /health/ready` on the API — expect 200 even if the broker is down; **503 `schema_mismatch`** if DB alembic revision ≠ expected (rebuild migrate / upgrade head).
 3. RabbitMQ: container health; management UI is localhost-only in dev.
 4. Unpublished Outbox lag (migrator / ops SQL):
@@ -80,14 +80,38 @@ Notes:
 - If publish succeeds but the DB UPDATE/audit fails, the CLI reports it clearly; **re-replay is safe** because Inbox keys on `event_id`.
 - Never deletes `failed_jobs` rows.
 
+## Scheduler
+
+The reservation-expiry `scheduler` service does **not** use RabbitMQ. It expires due RESERVED orders via the same use case as confirm-after-expiry, writing `OrderExpired` to the Outbox in the same tenant transaction; Relay publishes later.
+
+### Symptoms
+
+- Compose `scheduler` unhealthy (heartbeat stale > ~180s).
+- Reservations still held more than ~2 minutes after `expires_at`.
+- Accidental `docker compose … up --scale scheduler=2` (second copy should idle on advisory lock).
+
+### Checks
+
+1. `docker compose … ps` — `scheduler` health; `ops queue-signals` for heartbeats + Outbox lag.
+2. Confirm one scheduler replica only (V1). Session advisory lock: only one tick runs; the other logs `lock_not_acquired`.
+3. If RabbitMQ is down: orders should still expire and Outbox rows appear with `published_at IS NULL`; after broker+relay recovery, rows publish (same as queue outage recovery above).
+4. Logs: `scheduler_tenant_failed` with `tenant_id` means one org failed; others should still proceed.
+
+### Recovery
+
+1. Fix DB connectivity / schema drift; rebuild migrate and upgrade if needed.
+2. Restart a single scheduler: `up -d --wait scheduler` (do not scale to 2).
+3. Prove: backdated RESERVED order becomes EXPIRED; `queue-signals` shows fresh `scheduler` heartbeat; lag falls once Relay runs.
+
 ## Outbox / Inbox retention
 
 Keep published Outbox bodies at least **30 days** for controlled republish. No automatic Outbox or Inbox purge in the current release.
 
-> **TODO / ticket — Run 5.4:** Scheduled purge of `platform.outbox` and `platform.inbox` rows older than **30 days**, with a **dry-run first** mode (report counts, no DELETE). Do not implement in 5.3. Align with ADR-005 OPEN DECISION on Inbox auto-purge before enabling deletes.
+> **OPEN DECISION:** Scheduled purge of `platform.outbox` / `platform.inbox` older than 30 days (dry-run first). Not implemented in Phase 5.
 
 ## What not to do
 
 - Attach an old queue to a restored database without a controlled Outbox replay plan.
 - Delete Inbox rows to “force” a re-notify without a reviewed repair.
-- Put `STOCKPILOT_TEST_HANG_EVENT_ID` or admin DB URLs on api/worker/relay.
+- Put `STOCKPILOT_TEST_HANG_EVENT_ID` or admin DB URLs on api/worker/relay/scheduler.
+- Scale the scheduler above one replica in v1.

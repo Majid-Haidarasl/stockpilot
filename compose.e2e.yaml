@@ -16,9 +16,9 @@ services:
   migrate:
     environment:
       STOCKPILOT_MIGRATION_DATABASE_URL: postgresql+psycopg://stockpilot_migrator:${STOCKPILOT_MIGRATOR_PASSWORD:-migrator_dev_change_me}@postgres:5432/stockpilot_test
-      STOCKPILOT_EXPECTED_SCHEMA_REVISION: 0012_failed_jobs_replay
+      STOCKPILOT_EXPECTED_SCHEMA_REVISION: 0013_scheduler_heartbeats
     # Fail fast with a clear SCHEMA DRIFT message if DB revision != code head
-    # (e.g. stale migrate image left the e2e DB at 0009 while code is at 0012).
+    # (e.g. stale migrate image left the e2e DB at 0009 while code is at 0013).
     command:
       [
         "bash",
@@ -57,7 +57,7 @@ services:
     environment:
       STOCKPILOT_DATABASE_URL: postgresql+psycopg://stockpilot_relay:${STOCKPILOT_RELAY_PASSWORD:-relay_dev_change_me}@postgres:5432/stockpilot_test
       STOCKPILOT_ENVIRONMENT: test
-      STOCKPILOT_EXPECTED_SCHEMA_REVISION: 0012_failed_jobs_replay
+      STOCKPILOT_EXPECTED_SCHEMA_REVISION: 0013_scheduler_heartbeats
     depends_on:
       e2e-seed:
         condition: service_completed_successfully
@@ -68,7 +68,7 @@ services:
     environment:
       STOCKPILOT_DATABASE_URL: postgresql+psycopg://stockpilot_app:${STOCKPILOT_APP_PASSWORD:-app_dev_change_me}@postgres:5432/stockpilot_test
       STOCKPILOT_ENVIRONMENT: test
-      STOCKPILOT_EXPECTED_SCHEMA_REVISION: 0012_failed_jobs_replay
+      STOCKPILOT_EXPECTED_SCHEMA_REVISION: 0013_scheduler_heartbeats
     depends_on:
       e2e-seed:
         condition: service_completed_successfully

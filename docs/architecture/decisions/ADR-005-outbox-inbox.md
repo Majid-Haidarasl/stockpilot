@@ -15,10 +15,10 @@ What is the delivery contract for background notifications, how are duplicates h
 - **Inbox:** Worker uniqueness is `(consumer_name, event_id)`. Inbox + in-app notifications commit in one transaction; then the Celery task returns and acks (`acks_late`). Duplicates ack without a second notification set.
 - **Retry:** Transient consume errors use exponential backoff + jitter, max **five** attempts. Poison / unknown type → durable `platform.failed_jobs` with an allow-listed `sanitized_envelope` (original `event_id` preserved). Do not ack if failure cannot be recorded. `task_reject_on_worker_lost` is enabled and covered by a killed-worker test.
 - **Ops replay:** `python -m stockpilot.bootstrap.ops replay-failed-jobs` (ops service only). Dry-run by default; `--confirm` republishes the **original** envelope with the **same** `event_id` under `FOR UPDATE SKIP LOCKED`, then UPDATE `replayed_*` + audit in the same transaction held across publish. Unscoped jobs (`tenant_id` NULL) are skipped. Rows are never deleted. Re-replay is safe because Inbox dedups.
-- **Scheduler independence:** Reservation expiry does not depend on the queue (T14).
+- **Scheduler independence:** Reservation expiry does not depend on the queue (T14). See **ADR-006** for the Compose scheduler, advisory lock, heartbeats, and `outbox_lag()`.
 - **Inbox auto-purge:** Not enabled in v1 (**OPEN DECISION**).
 - **Outbox retention:** Published event bodies are kept at least **30 days** for controlled republish. **No auto-purge in this run** (document only).
-- **TODO Run 5.4:** Scheduled purge of Outbox/Inbox rows older than 30 days (dry-run first); resolve OPEN DECISION before enabling Inbox deletes.
+- **TODO (later):** Scheduled purge of Outbox/Inbox rows older than 30 days (dry-run first); resolve OPEN DECISION before enabling Inbox deletes.
 
 ## Consequences
 

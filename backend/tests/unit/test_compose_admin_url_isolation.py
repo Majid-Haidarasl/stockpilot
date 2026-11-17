@@ -79,3 +79,24 @@ def test_ops_has_celery_broker_url_api_does_not() -> None:
     assert "STOCKPILOT_CELERY_BROKER_URL" in ops
     api = _service_block("api", text)
     assert "STOCKPILOT_CELERY_BROKER_URL" not in api
+
+
+def _broker_vhost_from_service(block: str) -> str:
+    match = re.search(
+        r"STOCKPILOT_CELERY_BROKER_URL:\s*amqp://[^\s]+@[^/\s]+/([^\s]*)",
+        block,
+    )
+    assert match is not None, "STOCKPILOT_CELERY_BROKER_URL with amqp path not found"
+    # Empty path segment after final slash means default vhost "/".
+    return match.group(1) or "/"
+
+
+def test_backend_checks_broker_vhost_differs_from_worker() -> None:
+    """backend-checks must not share the live worker's RabbitMQ vhost."""
+    text = _compose_text()
+    worker_vhost = _broker_vhost_from_service(_service_block("worker", text))
+    checks_vhost = _broker_vhost_from_service(_service_block("backend-checks", text))
+    assert worker_vhost in ("/", ""), "dev worker should use default vhost"
+    assert checks_vhost == "stockpilot_test"
+    assert checks_vhost != worker_vhost
+    assert checks_vhost != "/"
