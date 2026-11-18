@@ -1,0 +1,21 @@
+# Gitleaks allowlist for known in-repo test/dev fixtures (not production secrets).
+title = "stockpilot"
+
+[allowlist]
+description = "Fixtures, examples, and local/vendor trees"
+paths = [
+  '''infra/keycloak/realm/stockpilot-realm\.json$''',
+  '''infra/keycloak/realm/stockpilot-realm\.prod\.example\.json$''',
+  '''infra/keycloak/realm/stockpilot-realm\.prodlike\.example\.json$''',
+  '''\.env\.example$''',
+  '''\.env\.prod\.example$''',
+  '''env\.prodlike\.example$''',
+  '''(^|/)node_modules/''',
+  '''(^|/)\.venv/''',
+  '''(^|/)frontend/node_modules/''',
+  '''(^|/)frontend/dist/''',
+  '''(^|/)\.git/''',
+  '''(^|/)gitleaks-report\.json$''',
+  '''env\.prodlike$''',
+  '''infra/keycloak/realm/stockpilot-realm\.prodlike\.json$''',
+]

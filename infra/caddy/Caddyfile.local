@@ -1,0 +1,58 @@
+# Local prod-like edge with Caddy internal TLS (no public ACME).
+# Map stockpilot.local and auth.stockpilot.local to 127.0.0.1 on the host.
+# Never route /metrics or api:8001.
+
+{
+	local_certs
+}
+
+stockpilot.local {
+	tls internal
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		X-Frame-Options "DENY"
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://auth.stockpilot.local; frame-src https://auth.stockpilot.local; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://auth.stockpilot.local"
+		-Server
+	}
+
+	handle /metrics {
+		respond 404
+	}
+	handle /metrics/* {
+		respond 404
+	}
+	handle /api/* {
+		reverse_proxy api:8000
+	}
+	handle /auth/* {
+		reverse_proxy api:8000
+	}
+	handle /health/* {
+		reverse_proxy api:8000
+	}
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}
+
+auth.stockpilot.local {
+	tls internal
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		X-Frame-Options "DENY"
+		-Server
+	}
+
+	reverse_proxy keycloak:8080 {
+		header_up X-Forwarded-Proto {http.request.scheme}
+		header_up X-Forwarded-Host {http.request.host}
+	}
+}

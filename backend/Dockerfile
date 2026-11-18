@@ -26,8 +26,11 @@ COPY alembic.ini ./
 COPY alembic ./alembic
 COPY src ./src
 COPY pyproject.toml uv.lock README.md ./
+# Named volume first-mount copies this dir (uid 1000). Existing volumes may need
+# a one-off root chown — see docs/runbooks/deploy.md.
 RUN mkdir -p /var/lib/stockpilot/media \
-    && chown -R app:app /var/lib/stockpilot
+    && chown -R app:app /var/lib/stockpilot \
+    && chmod 775 /var/lib/stockpilot/media
 USER app
 EXPOSE 8000
 CMD ["uvicorn", "stockpilot.bootstrap.app:app", "--host", "0.0.0.0", "--port", "8000"]

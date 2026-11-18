@@ -68,6 +68,18 @@ Host: Windows 11 + Docker Desktop (WSL2), AMD64. Containers are Linux.
 |---|---|
 | `actions/checkout` | `@v4` (major tag; digest pin **TODO** before release hardening) |
 | `docker/setup-buildx-action` | `@v3` (major tag; digest pin **TODO** before release hardening) |
+| `docker/login-action` | `@v3` (release.yml) |
+| `docker/build-push-action` | `@v6` (release.yml) |
+| `gitleaks/gitleaks-action` | `@v2` (release.yml) |
+| `aquasecurity/trivy-action` | `@0.28.0` (release.yml) |
+
+## Release images (Run 6.2)
+
+| Image | Tag policy |
+|---|---|
+| `ghcr.io/majid-haidarasl/stockpilot-backend` | Immutable git SHA (lowercase owner) |
+| `ghcr.io/majid-haidarasl/stockpilot-edge` | Immutable git SHA; embeds Caddy 2.9-alpine + frontend dist |
+| `caddy` | `2.9-alpine` (edge base) |
 
 ## Quality coverage target
 

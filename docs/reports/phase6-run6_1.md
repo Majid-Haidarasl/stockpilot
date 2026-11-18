@@ -66,6 +66,10 @@ docker compose -f compose.yaml -f compose.dev.yaml run --rm ops python -m stockp
 
 Post-recovery: `unpublished_count=0`, `oldest_unpublished_age_seconds=None`.
 
+**Side-effect note (this run):** The fake `OrderCancelled` Outbox rows were published into the **dev** DB and the worker created Inbox + (for some tenants) notifications. Targeted cleanup removed **only** the 6 resulting `OrderCancelled` notifications; Inbox/Outbox/`failed_jobs` were left alone.
+
+**Future alert proofs:** Do **not** insert consumable lifecycle events into the shared development database. Prefer either (a) inducing lag on **`stockpilot_test`** (or another isolated Compose project DB), or (b) using an event type / path with **no worker side effects** (so publish alone moves lag without Inbox/notifications). If a temporary row is required in a product DB, plan a reviewed, ID-scoped cleanup beforehand.
+
 ## Test counts
 
 | Suite | Count |
@@ -100,6 +104,7 @@ Never used `down -v` or volume deletion. Did not touch `compose.prod.yaml`. Did 
 2. Fresh `uv.lock` includes `prometheus-client==0.26.0` (lock updated via `uv lock` as root with backend bind-mount).
 3. E2E project must rebuild `e2e-ensure-db` so `stockpilot_metrics` exists before `0014`.
 4. Single-process uvicorn: no `PROMETHEUS_MULTIPROC_DIR`. If 6.2 adds workers, enable multiprocess mode then.
+5. Alert-proof fakes on the shared `stockpilot` DB created Inbox/notification side effects; notifications cleaned up (count 6). Prefer test DB / no-side-effect events next time (see Alert proof section).
 
 ## Explicitly not done (later)
 

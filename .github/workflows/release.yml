@@ -1,0 +1,144 @@
+name: release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  backend-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Backend checks
+        run: docker compose -f compose.yaml -f compose.dev.yaml --profile test run --rm backend-checks
+
+  frontend-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Frontend checks
+        run: docker compose -f compose.yaml -f compose.dev.yaml --profile test run --rm frontend-checks
+
+  build-and-push:
+    needs: [backend-checks, frontend-checks]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      git_sha: ${{ steps.meta.outputs.sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image metadata
+        id: meta
+        run: |
+          SHA="$(git rev-parse HEAD)"
+          OWNER="$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
+          echo "sha=${SHA}" >> "$GITHUB_OUTPUT"
+          echo "owner=${OWNER}" >> "$GITHUB_OUTPUT"
+          echo "backend=ghcr.io/${OWNER}/stockpilot-backend" >> "$GITHUB_OUTPUT"
+          echo "edge=ghcr.io/${OWNER}/stockpilot-edge" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push backend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          target: runtime
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.backend }}:${{ steps.meta.outputs.sha }}
+            ${{ steps.meta.outputs.backend }}:${{ github.ref_type == 'tag' && github.ref_name || steps.meta.outputs.sha }}
+
+      - name: Build and push edge
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./infra/edge/Dockerfile
+          push: true
+          build-args: |
+            VITE_API_BASE_URL=
+          tags: |
+            ${{ steps.meta.outputs.edge }}:${{ steps.meta.outputs.sha }}
+            ${{ steps.meta.outputs.edge }}:${{ github.ref_type == 'tag' && github.ref_name || steps.meta.outputs.sha }}
+
+      - name: Record digests
+        run: |
+          echo "Backend and edge pushed with immutable tag ${{ steps.meta.outputs.sha }}"
+          docker buildx imagetools inspect "${{ steps.meta.outputs.backend }}:${{ steps.meta.outputs.sha }}"
+          docker buildx imagetools inspect "${{ steps.meta.outputs.edge }}:${{ steps.meta.outputs.sha }}"
+
+  scans:
+    needs: [build-and-push]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Lowercase owner
+        id: meta
+        run: |
+          OWNER="$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
+          echo "backend=ghcr.io/${OWNER}/stockpilot-backend:${{ needs.build-and-push.outputs.git_sha }}" >> "$GITHUB_OUTPUT"
+          echo "edge=ghcr.io/${OWNER}/stockpilot-edge:${{ needs.build-and-push.outputs.git_sha }}" >> "$GITHUB_OUTPUT"
+
+      - name: Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Trivy backend image
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ steps.meta.outputs.backend }}
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+
+      - name: Trivy edge image
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ steps.meta.outputs.edge }}
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+
+      - name: pip-audit from uv.lock
+        run: |
+          docker run --rm -v "$PWD/backend:/work" -w /work ghcr.io/astral-sh/uv:0.9.7 \
+            sh -c "uv export --frozen --no-dev -o /tmp/req.txt && uvx pip-audit -r /tmp/req.txt"

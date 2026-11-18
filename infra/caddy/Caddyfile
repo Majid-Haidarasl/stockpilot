@@ -1,4 +1,53 @@
-# Placeholder for later edge routing (Phase 1 serves UI via frontend-dev).
-:80 {
-  respond "StockPilot edge placeholder" 200
+# Production edge. Placeholders only — set STOCKPILOT_PUBLIC_HOST / STOCKPILOT_AUTH_HOST via env.
+# Never route /metrics or api:8001. Never proxy Prometheus, Grafana, Alertmanager, RabbitMQ, or Postgres.
+
+{
+	email {$ACME_EMAIL}
+}
+
+{$STOCKPILOT_PUBLIC_HOST} {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		X-Frame-Options "DENY"
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://{$STOCKPILOT_AUTH_HOST}; frame-src https://{$STOCKPILOT_AUTH_HOST}; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://{$STOCKPILOT_AUTH_HOST}"
+		-Server
+	}
+
+	handle /metrics {
+		respond 404
+	}
+	handle /metrics/* {
+		respond 404
+	}
+	handle /api/* {
+		reverse_proxy api:8000
+	}
+	handle /auth/* {
+		reverse_proxy api:8000
+	}
+	handle /health/* {
+		reverse_proxy api:8000
+	}
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}
+
+{$STOCKPILOT_AUTH_HOST} {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		X-Frame-Options "DENY"
+		-Server
+	}
+
+	reverse_proxy keycloak:8080 {
+		header_up X-Forwarded-Proto {http.request.scheme}
+		header_up X-Forwarded-Host {http.request.host}
+	}
 }

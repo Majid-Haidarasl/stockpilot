@@ -1,0 +1,18 @@
+# Local prod-like overlay (Windows Docker Desktop). Use with:
+#   compose.yaml + compose.prod.yaml + compose.prodlike.yaml
+# Project: -p stockpilot-prodlike  (never down -v)
+# Replaces ACME Caddyfile with tls internal for stockpilot.local.
+services:
+  edge:
+    volumes:
+      - ./infra/caddy/Caddyfile.local:/etc/caddy/Caddyfile:ro
+    networks:
+      stockpilot:
+        aliases:
+          - stockpilot.local
+          - auth.stockpilot.local
+
+  # Avoid clashing with compose.dev.yaml Grafana on host 8300 during local verification.
+  grafana:
+    ports: !override
+      - "127.0.0.1:18300:3000"

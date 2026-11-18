@@ -64,8 +64,13 @@ services:
       - ./backend/pyproject.toml:/app/pyproject.toml:ro
       - ./backend/uv.lock:/app/uv.lock:ro
       - ./docs:/docs:ro
+      - ./compose.prod.yaml:/compose.prod.yaml:ro
+      - ./infra/caddy:/caddy:ro
     environment:
       STOCKPILOT_SAMPLE_DATA_PATH: /docs/stockpilot-sample-data.md
+      STOCKPILOT_COMPOSE_PROD_PATH: /compose.prod.yaml
+      STOCKPILOT_CADDY_PROD_PATH: /caddy/Caddyfile
+      STOCKPILOT_CADDY_LOCAL_PATH: /caddy/Caddyfile.local
 
   openapi-export:
     volumes:

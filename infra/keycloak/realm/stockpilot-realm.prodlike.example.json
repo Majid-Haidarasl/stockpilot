@@ -1,0 +1,56 @@
+{
+  "realm": "stockpilot",
+  "enabled": true,
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": false,
+  "editUsernameAllowed": false,
+  "sslRequired": "external",
+  "loginTheme": "stockpilot",
+  "internationalizationEnabled": true,
+  "supportedLocales": ["fa"],
+  "defaultLocale": "fa",
+
+  "roles": {
+    "realm": [
+      { "name": "default-roles-stockpilot", "composite": false }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "stockpilot-api",
+      "name": "StockPilot API",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "REPLACE_WITH_STOCKPILOT_OIDC_CLIENT_SECRET",
+      "redirectUris": [
+        "https://stockpilot.local/auth/callback"
+      ],
+      "webOrigins": [
+        "https://stockpilot.local"
+      ],
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "https://stockpilot.local/*##https://stockpilot.local"
+      },
+      "protocol": "openid-connect"
+    }
+  ],
+  "users": [
+    {
+      "id": "11111111-1111-1111-1111-111111111111",
+      "username": "admin@aftab.test",
+      "enabled": true,
+      "email": "admin@aftab.test",
+      "emailVerified": true,
+      "firstName": "Aftab",
+      "lastName": "Admin",
+      "credentials": [
+        { "type": "password", "value": "REPLACE_WITH_PRODLIKE_USER_PASSWORD", "temporary": false }
+      ]
+    }
+  ]
+}

@@ -5,6 +5,10 @@
 .env.*
 !.env.example
 !.env.*.example
+# Local prod-like filled copies (templates are *.example)
+env.prodlike
+infra/keycloak/realm/stockpilot-realm.prodlike.json
+gitleaks-report.json
 *.pem
 *.key
 *.p12
@@ -197,6 +201,7 @@ docs/evidence/*.local.md
 # =========================
 *.local
 !*.local.example
+!infra/caddy/Caddyfile.local
 .local/
 .direnv/
 .envrc.local

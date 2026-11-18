@@ -1,0 +1,43 @@
+{
+  "realm": "stockpilot",
+  "enabled": true,
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": false,
+  "editUsernameAllowed": false,
+  "sslRequired": "external",
+  "loginTheme": "stockpilot",
+  "internationalizationEnabled": true,
+  "supportedLocales": ["fa"],
+  "defaultLocale": "fa",
+
+  "roles": {
+    "realm": [
+      { "name": "default-roles-stockpilot", "composite": false }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "stockpilot-api",
+      "name": "StockPilot API",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "REPLACE_WITH_STOCKPILOT_OIDC_CLIENT_SECRET",
+      "redirectUris": [
+        "https://example.com/auth/callback"
+      ],
+      "webOrigins": [
+        "https://example.com"
+      ],
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "https://example.com/*##https://example.com"
+      },
+      "protocol": "openid-connect"
+    }
+  ],
+  "users": []
+}

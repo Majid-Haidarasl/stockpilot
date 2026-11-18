@@ -1,10 +1,233 @@
-# Minimal production-shaped overlay for Phase 1.
-# Release practice: use versioned image digests — never "latest".
+# Production overlay. Images: immutable git SHA tags (record digests).
+# Secrets: host env_file only — never commit real values.
+# Public ports: edge 80/443 only. Grafana loopback-only for SSH tunnel.
+# Observability stays on profile; never publish 8001/15692/5432/5672/15672/9090/9093/9108.
+x-restart: &restart
+  restart: unless-stopped
+x-logging: &logging
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+x-security: &security
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+
 services:
+  edge:
+    image: ghcr.io/majid-haidarasl/stockpilot-edge:${STOCKPILOT_IMAGE_TAG:?set SHA tag}
+    <<: [*restart, *logging]
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      STOCKPILOT_PUBLIC_HOST: ${STOCKPILOT_PUBLIC_HOST:?}
+      STOCKPILOT_AUTH_HOST: ${STOCKPILOT_AUTH_HOST:?}
+      ACME_EMAIL: ${ACME_EMAIL:-ops@example.com}
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    networks:
+      - stockpilot
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 256M
+
   api:
-    restart: unless-stopped
-    # Replace with digest-pinned images after CI publishes them, e.g.:
-    # image: ghcr.io/majid-haidarasl/stockpilot-backend@sha256:REPLACE_AFTER_PUBLISH
+    image: ghcr.io/majid-haidarasl/stockpilot-backend:${STOCKPILOT_IMAGE_TAG:?set SHA tag}
+    build: !reset null
+    <<: [*restart, *logging, *security]
+    user: "1000:1000"
+    read_only: true
+    tmpfs:
+      - /tmp
+    ports: !reset []
+    environment:
+      STOCKPILOT_ENVIRONMENT: production
+      STOCKPILOT_COOKIE_SECURE: "true"
+      STOCKPILOT_COOKIE_SAMESITE: lax
+      STOCKPILOT_CORS_ORIGINS: https://${STOCKPILOT_PUBLIC_HOST}
+      STOCKPILOT_APP_PUBLIC_ORIGIN: https://${STOCKPILOT_PUBLIC_HOST}
+      STOCKPILOT_FRONTEND_DEFAULT_URL: https://${STOCKPILOT_PUBLIC_HOST}
+      STOCKPILOT_OIDC_ISSUER: https://${STOCKPILOT_AUTH_HOST}/realms/stockpilot
+      STOCKPILOT_OIDC_METADATA_URL: http://keycloak:8080/realms/stockpilot/.well-known/openid-configuration
+      STOCKPILOT_OIDC_REDIRECT_URI: https://${STOCKPILOT_PUBLIC_HOST}/auth/callback
+      STOCKPILOT_OIDC_ALLOWED_REDIRECT_URIS: https://${STOCKPILOT_PUBLIC_HOST}/auth/callback
+      STOCKPILOT_API_METRICS_ENABLED: "true"
+      STOCKPILOT_API_METRICS_PORT: "8001"
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+
+  relay:
+    image: ghcr.io/majid-haidarasl/stockpilot-backend:${STOCKPILOT_IMAGE_TAG:?set SHA tag}
+    build: !reset null
+    <<: [*restart, *logging, *security]
+    user: "1000:1000"
+    ports: !reset []
+    environment:
+      STOCKPILOT_ENVIRONMENT: production
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 256M
+
+  worker:
+    image: ghcr.io/majid-haidarasl/stockpilot-backend:${STOCKPILOT_IMAGE_TAG:?set SHA tag}
+    build: !reset null
+    <<: [*restart, *logging, *security]
+    user: "1000:1000"
+    ports: !reset []
+    environment:
+      STOCKPILOT_ENVIRONMENT: production
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+
+  scheduler:
+    image: ghcr.io/majid-haidarasl/stockpilot-backend:${STOCKPILOT_IMAGE_TAG:?set SHA tag}
+    build: !reset null
+    <<: [*restart, *logging, *security]
+    user: "1000:1000"
+    ports: !reset []
+    environment:
+      STOCKPILOT_ENVIRONMENT: production
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256M
+
+  migrate:
+    image: ghcr.io/majid-haidarasl/stockpilot-backend:${STOCKPILOT_IMAGE_TAG:?set SHA tag}
+    build: !reset null
+    <<: [*logging, *security]
+    user: "1000:1000"
+    restart: "no"
+    ports: !reset []
+    environment:
+      STOCKPILOT_ENVIRONMENT: production
+
+  ops:
+    image: ghcr.io/majid-haidarasl/stockpilot-backend:${STOCKPILOT_IMAGE_TAG:?set SHA tag}
+    build: !reset null
+    <<: [*logging, *security]
+    user: "1000:1000"
+    restart: "no"
+    ports: !reset []
+    environment:
+      STOCKPILOT_ENVIRONMENT: production
+      STOCKPILOT_OIDC_ISSUER: https://${STOCKPILOT_AUTH_HOST}/realms/stockpilot
+      # Optional: pin Keycloak user ids so bootstrap memberships match OIDC `sub`.
+      STOCKPILOT_SUBJECT_AFTAB_ADMIN: ${STOCKPILOT_SUBJECT_AFTAB_ADMIN:-}
+      STOCKPILOT_SUBJECT_AFTAB_SALES: ${STOCKPILOT_SUBJECT_AFTAB_SALES:-}
+      STOCKPILOT_SUBJECT_AFTAB_WAREHOUSE: ${STOCKPILOT_SUBJECT_AFTAB_WAREHOUSE:-}
+      STOCKPILOT_SUBJECT_BARAN_ADMIN: ${STOCKPILOT_SUBJECT_BARAN_ADMIN:-}
+      STOCKPILOT_SUBJECT_BARAN_VIEWER: ${STOCKPILOT_SUBJECT_BARAN_VIEWER:-}
+    command:
+      [
+        "python",
+        "-m",
+        "stockpilot.bootstrap.ops",
+        "bootstrap",
+        "--environment",
+        "production",
+      ]
 
   postgres:
-    restart: unless-stopped
+    <<: [*restart, *logging]
+    ports: !reset []
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+
+  rabbitmq:
+    <<: [*restart, *logging]
+    ports: !reset []
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 512M
+
+  keycloak:
+    <<: [*restart, *logging]
+    ports: !reset []
+    # Keycloak 26 hostname v2 — full URL hostname; omit deprecated strict-https flag.
+    command:
+      - start
+      - --import-realm
+    environment:
+      # Clear hostname-v1 leftovers from compose.yaml (hostname-port).
+      KC_HOSTNAME_PORT: ""
+      KC_HOSTNAME: https://${STOCKPILOT_AUTH_HOST:?}
+      KC_HOSTNAME_STRICT: "true"
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      KC_HTTP_ENABLED: "true"
+      KC_PROXY_HEADERS: xforwarded
+      KC_HEALTH_ENABLED: "true"
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?}
+      KEYCLOAK_ADMIN: ""
+      KEYCLOAK_ADMIN_PASSWORD: ""
+    # Replace base realm-dir mount with a host-provided realm file + theme.
+    volumes: !override
+      - ${STOCKPILOT_KEYCLOAK_REALM_FILE}:/opt/keycloak/data/import/stockpilot-realm.json:ro
+      - ./infra/keycloak/themes/stockpilot:/opt/keycloak/themes/stockpilot:ro
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+
+  frontend-dev:
+    profiles: ["never"]
+    ports: !reset []
+
+  ops-exporter:
+    image: ghcr.io/majid-haidarasl/stockpilot-backend:${STOCKPILOT_IMAGE_TAG:?set SHA tag}
+    build: !reset null
+    <<: [*restart, *logging, *security]
+    user: "1000:1000"
+    ports: !reset []
+    environment:
+      STOCKPILOT_ENVIRONMENT: production
+
+  prometheus:
+    <<: [*restart, *logging]
+    ports: !reset []
+
+  grafana:
+    <<: [*restart, *logging]
+    # Loopback only — SSH tunnel: ssh -N -L 8300:127.0.0.1:8300 user@vps
+    ports:
+      - "127.0.0.1:8300:3000"
+
+  alertmanager:
+    <<: [*restart, *logging]
+    ports: !reset []
+
+  alert-sink:
+    <<: [*restart, *logging]
+    ports: !reset []
+
+volumes:
+  caddy_data:
+  caddy_config:
