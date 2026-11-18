@@ -32,7 +32,7 @@
     },
     {
       "type": "timeseries",
-      "title": "Heartbeat age by service",
+      "title": "Heartbeat age by service (scheduler/relay/worker/backup)",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
       "targets": [
         {

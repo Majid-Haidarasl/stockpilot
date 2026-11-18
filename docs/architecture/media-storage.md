@@ -39,7 +39,8 @@ rollback cleanup re-check the database and unlink only when no committed
 
 ## Phase 6 backup (T15)
 
-When off-host backup is implemented, **include the `stockpilot_media` volume**
-together with the Postgres dumps. Restoring only the database leaves image URLs
-broken; restoring only media without matching rows leaves orphan files. Record
-schema revision and app image version with the snapshot metadata as for DBs.
+Off-host backup **includes the `stockpilot_media` volume** together with the
+Postgres dumps (see [`docs/runbooks/backup-restore.md`](../runbooks/backup-restore.md)).
+Restoring only the database leaves image URLs broken; restoring only media
+without matching rows leaves orphan files. Record schema revision and app image
+version with the snapshot metadata as for DBs.

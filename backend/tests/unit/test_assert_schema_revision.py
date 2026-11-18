@@ -12,7 +12,7 @@ from stockpilot.bootstrap.assert_schema_revision import (
 
 def test_code_alembic_head_is_single_revision() -> None:
     head = code_alembic_head()
-    assert head == "0014_ops_metrics"
+    assert head == "0015_backup_heartbeat"
 
 
 def test_assert_schema_at_head_rejects_lag(monkeypatch: pytest.MonkeyPatch) -> None:

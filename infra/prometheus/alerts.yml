@@ -79,3 +79,14 @@ groups:
           severity: warning
         annotations:
           summary: Stale RESERVED orders still held after expiry
+
+      - alert: StockpilotBackupStale
+        expr: |
+          stockpilot_heartbeat_present{service_name="backup"} == 0
+          or stockpilot_heartbeat_last_success_age_seconds{service_name="backup"} > 50400
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: Backup freshness stale
+          description: No successful restic backup heartbeat within 14 hours (12h schedule).

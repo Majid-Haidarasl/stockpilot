@@ -7,6 +7,7 @@
 !.env.*.example
 # Local prod-like filled copies (templates are *.example)
 env.prodlike
+env.restore
 infra/keycloak/realm/stockpilot-realm.prodlike.json
 gitleaks-report.json
 *.pem

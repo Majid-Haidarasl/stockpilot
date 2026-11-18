@@ -18,7 +18,7 @@ class Settings(BaseSettings):
         alias="STOCKPILOT_DATABASE_URL",
     )
     expected_schema_revision: str = Field(
-        default="0014_ops_metrics",
+        default="0015_backup_heartbeat",
         alias="STOCKPILOT_EXPECTED_SCHEMA_REVISION",
     )
     api_metrics_enabled: bool = Field(

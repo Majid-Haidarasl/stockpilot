@@ -65,6 +65,7 @@ jobs:
           echo "owner=${OWNER}" >> "$GITHUB_OUTPUT"
           echo "backend=ghcr.io/${OWNER}/stockpilot-backend" >> "$GITHUB_OUTPUT"
           echo "edge=ghcr.io/${OWNER}/stockpilot-edge" >> "$GITHUB_OUTPUT"
+          echo "backup=ghcr.io/${OWNER}/stockpilot-backup" >> "$GITHUB_OUTPUT"
 
       - name: Build and push backend
         uses: docker/build-push-action@v6
@@ -89,11 +90,22 @@ jobs:
             ${{ steps.meta.outputs.edge }}:${{ steps.meta.outputs.sha }}
             ${{ steps.meta.outputs.edge }}:${{ github.ref_type == 'tag' && github.ref_name || steps.meta.outputs.sha }}
 
+      - name: Build and push backup
+        uses: docker/build-push-action@v6
+        with:
+          context: ./infra/backup
+          file: ./infra/backup/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.backup }}:${{ steps.meta.outputs.sha }}
+            ${{ steps.meta.outputs.backup }}:${{ github.ref_type == 'tag' && github.ref_name || steps.meta.outputs.sha }}
+
       - name: Record digests
         run: |
-          echo "Backend and edge pushed with immutable tag ${{ steps.meta.outputs.sha }}"
+          echo "Backend, edge, and backup pushed with immutable tag ${{ steps.meta.outputs.sha }}"
           docker buildx imagetools inspect "${{ steps.meta.outputs.backend }}:${{ steps.meta.outputs.sha }}"
           docker buildx imagetools inspect "${{ steps.meta.outputs.edge }}:${{ steps.meta.outputs.sha }}"
+          docker buildx imagetools inspect "${{ steps.meta.outputs.backup }}:${{ steps.meta.outputs.sha }}"
 
   scans:
     needs: [build-and-push]
@@ -111,6 +123,7 @@ jobs:
           OWNER="$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
           echo "backend=ghcr.io/${OWNER}/stockpilot-backend:${{ needs.build-and-push.outputs.git_sha }}" >> "$GITHUB_OUTPUT"
           echo "edge=ghcr.io/${OWNER}/stockpilot-edge:${{ needs.build-and-push.outputs.git_sha }}" >> "$GITHUB_OUTPUT"
+          echo "backup=ghcr.io/${OWNER}/stockpilot-backup:${{ needs.build-and-push.outputs.git_sha }}" >> "$GITHUB_OUTPUT"
 
       - name: Gitleaks
         uses: gitleaks/gitleaks-action@v2
@@ -135,6 +148,13 @@ jobs:
         uses: aquasecurity/trivy-action@0.28.0
         with:
           image-ref: ${{ steps.meta.outputs.edge }}
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+
+      - name: Trivy backup image
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ steps.meta.outputs.backup }}
           severity: CRITICAL,HIGH
           exit-code: "1"
 

@@ -228,6 +228,103 @@ services:
     <<: [*restart, *logging]
     ports: !reset []
 
+  backup:
+    image: ghcr.io/majid-haidarasl/stockpilot-backup:${STOCKPILOT_IMAGE_TAG:?set SHA tag}
+    build: !reset null
+    <<: [*logging, *security]
+    user: "1000:1000"
+    restart: "no"
+    environment:
+      STOCKPILOT_ENVIRONMENT: production
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: stockpilot_backup
+      PGPASSWORD: ${STOCKPILOT_BACKUP_PASSWORD:?}
+      RESTIC_REPOSITORY: ${RESTIC_REPOSITORY:?}
+      RESTIC_PASSWORD: ${RESTIC_PASSWORD:?}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-}
+      STOCKPILOT_IMAGE_TAG: ${STOCKPILOT_IMAGE_TAG:?}
+      STOCKPILOT_MEDIA_DIR: /var/lib/stockpilot/media
+      STOCKPILOT_BACKUP_SCRATCH: /var/lib/stockpilot/backup-scratch
+      STOCKPILOT_BACKUP_CHECK_EVERY_N: ${STOCKPILOT_BACKUP_CHECK_EVERY_N:-14}
+    volumes:
+      - stockpilot_media:/var/lib/stockpilot/media:ro
+      - backup_scratch:/var/lib/stockpilot/backup-scratch
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - stockpilot
+    profiles: ["backup"]
+    command: ["/usr/local/bin/backup.sh"]
+
+  backup-scheduler:
+    image: ghcr.io/majid-haidarasl/stockpilot-backup:${STOCKPILOT_IMAGE_TAG:?set SHA tag}
+    build: !reset null
+    <<: [*restart, *logging, *security]
+    user: "1000:1000"
+    environment:
+      STOCKPILOT_ENVIRONMENT: production
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: stockpilot_backup
+      PGPASSWORD: ${STOCKPILOT_BACKUP_PASSWORD:?}
+      RESTIC_REPOSITORY: ${RESTIC_REPOSITORY:?}
+      RESTIC_PASSWORD: ${RESTIC_PASSWORD:?}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-}
+      STOCKPILOT_IMAGE_TAG: ${STOCKPILOT_IMAGE_TAG:?}
+      STOCKPILOT_MEDIA_DIR: /var/lib/stockpilot/media
+      STOCKPILOT_BACKUP_SCRATCH: /var/lib/stockpilot/backup-scratch
+      STOCKPILOT_BACKUP_INTERVAL_SECONDS: ${STOCKPILOT_BACKUP_INTERVAL_SECONDS:-43200}
+      STOCKPILOT_BACKUP_CHECK_EVERY_N: ${STOCKPILOT_BACKUP_CHECK_EVERY_N:-14}
+    volumes:
+      - stockpilot_media:/var/lib/stockpilot/media:ro
+      - backup_scratch:/var/lib/stockpilot/backup-scratch
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - stockpilot
+    profiles: ["backup"]
+    command: ["/usr/local/bin/scheduler.sh"]
+
+  restore:
+    image: ghcr.io/majid-haidarasl/stockpilot-backup:${STOCKPILOT_IMAGE_TAG:?set SHA tag}
+    build: !reset null
+    <<: [*logging, *security]
+    user: "1000:1000"
+    restart: "no"
+    environment:
+      STOCKPILOT_ENVIRONMENT: production
+      STOCKPILOT_RESTORE_CONFIRM: ${STOCKPILOT_RESTORE_CONFIRM:-}
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: ${POSTGRES_SUPERUSER:-postgres}
+      PGPASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?}
+      RESTIC_REPOSITORY: ${RESTIC_REPOSITORY:?}
+      RESTIC_PASSWORD: ${RESTIC_PASSWORD:?}
+      RESTIC_SNAPSHOT: ${RESTIC_SNAPSHOT:-latest}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-}
+      STOCKPILOT_MEDIA_DIR: /var/lib/stockpilot/media
+      STOCKPILOT_BACKUP_SCRATCH: /var/lib/stockpilot/backup-scratch
+    volumes:
+      - stockpilot_media:/var/lib/stockpilot/media
+      - backup_scratch:/var/lib/stockpilot/backup-scratch
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - stockpilot
+    profiles: ["backup"]
+    command: ["/usr/local/bin/restore.sh"]
+
 volumes:
   caddy_data:
   caddy_config:
+  backup_scratch:

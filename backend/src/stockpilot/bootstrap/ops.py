@@ -26,7 +26,11 @@ from stockpilot.modules.catalog.adapters.outbound.repo import CatalogRepository
 from stockpilot.modules.inventory.adapters.outbound.repo import InventoryRepository
 from stockpilot.modules.inventory.domain.models import DEFAULT_WAREHOUSE
 from stockpilot.modules.sales.adapters.outbound.customer_repo import CustomerRepository
-from stockpilot.platform.db_roles import ensure_stockpilot_metrics, ensure_stockpilot_relay
+from stockpilot.platform.db_roles import (
+    ensure_stockpilot_backup,
+    ensure_stockpilot_metrics,
+    ensure_stockpilot_relay,
+)
 from stockpilot.platform.failed_jobs.replay import replay_failed_jobs
 from stockpilot.platform.heartbeats.store import fetch_outbox_lag
 from stockpilot.platform.persistence.db import get_engine
@@ -64,7 +68,7 @@ def _migration_engine() -> Engine:
 
 
 def cmd_ensure_db_roles() -> None:
-    """Idempotent create/update of stockpilot_relay + stockpilot_metrics. Never logs secrets."""
+    """Idempotent create/update of relay, metrics, backup roles. Never logs secrets."""
     admin_url = os.environ.get("STOCKPILOT_ADMIN_DATABASE_URL")
     if not admin_url:
         raise SystemExit(
@@ -73,13 +77,16 @@ def cmd_ensure_db_roles() -> None:
         )
     relay_password = os.environ.get("STOCKPILOT_RELAY_PASSWORD")
     metrics_password = os.environ.get("STOCKPILOT_METRICS_PASSWORD")
+    backup_password = os.environ.get("STOCKPILOT_BACKUP_PASSWORD")
     engine = create_engine(admin_url, isolation_level="AUTOCOMMIT", pool_pre_ping=True)
     with engine.connect() as conn:
         ensure_stockpilot_relay(conn, password=relay_password)
         ensure_stockpilot_metrics(conn, password=metrics_password)
+        ensure_stockpilot_backup(conn, password=backup_password)
     # Do not print passwords or the admin URL.
     print("ensure-db-roles: stockpilot_relay ready", flush=True)
     print("ensure-db-roles: stockpilot_metrics ready", flush=True)
+    print("ensure-db-roles: stockpilot_backup ready", flush=True)
 
 
 def _assert_dev_only(environment: str, *, command: str) -> None:

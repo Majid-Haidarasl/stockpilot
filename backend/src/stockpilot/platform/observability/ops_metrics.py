@@ -53,7 +53,7 @@ SCRAPE_TIMESTAMP = Gauge(
     registry=REGISTRY,
 )
 
-KNOWN_SERVICES = ("scheduler", "relay", "worker")
+KNOWN_SERVICES = ("scheduler", "relay", "worker", "backup")
 
 
 def age_seconds(last_success_at: datetime | None, *, now: datetime | None = None) -> float:

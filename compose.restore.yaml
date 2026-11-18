@@ -1,0 +1,37 @@
+# Restore-drill overlay. Always use: -p stockpilot-restore
+# Never down -v. Never attach source rabbitmq_data / postgres_data / media.
+# Shares PRACTICE restic repo volume from the default stockpilot project (external).
+# No host ports in 8084–8183; smoke via compose exec / optional high ports below.
+
+name: stockpilot-restore
+
+services:
+  # Avoid clashing with default stockpilot / e2e / prodlike host ports.
+  postgres:
+    ports: !reset []
+
+  keycloak:
+    ports: !reset []
+
+  rabbitmq:
+    ports: !reset []
+
+  api:
+    ports: !reset []
+
+  frontend-dev:
+    profiles: ["never"]
+    ports: !reset []
+
+  restore:
+    environment:
+      STOCKPILOT_RESTORE_CONFIRM: stockpilot-restore
+      # pg_restore needs superuser to preserve owners/privileges.
+      PGUSER: ${POSTGRES_SUPERUSER:-postgres}
+      PGPASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:-postgres}
+
+volumes:
+  # Read snapshots produced by the default project's backup job.
+  restic_practice:
+    external: true
+    name: stockpilot_restic_practice

@@ -11,6 +11,7 @@ services:
       STOCKPILOT_APP_PASSWORD: ${STOCKPILOT_APP_PASSWORD:-app_dev_change_me}
       STOCKPILOT_RELAY_PASSWORD: ${STOCKPILOT_RELAY_PASSWORD:-relay_dev_change_me}
       STOCKPILOT_METRICS_PASSWORD: ${STOCKPILOT_METRICS_PASSWORD:-metrics_dev_change_me}
+      STOCKPILOT_BACKUP_PASSWORD: ${STOCKPILOT_BACKUP_PASSWORD:-backup_dev_change_me}
       KEYCLOAK_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:-keycloak_dev_change_me}
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -99,6 +100,7 @@ services:
       STOCKPILOT_ADMIN_DATABASE_URL: ${STOCKPILOT_ADMIN_DATABASE_URL:-postgresql+psycopg://postgres:postgres@postgres:5432/postgres}
       STOCKPILOT_RELAY_PASSWORD: ${STOCKPILOT_RELAY_PASSWORD:-relay_dev_change_me}
       STOCKPILOT_METRICS_PASSWORD: ${STOCKPILOT_METRICS_PASSWORD:-metrics_dev_change_me}
+      STOCKPILOT_BACKUP_PASSWORD: ${STOCKPILOT_BACKUP_PASSWORD:-backup_dev_change_me}
       # Broker for ops replay-failed-jobs only (never on api).
       STOCKPILOT_CELERY_BROKER_URL: amqp://${RABBITMQ_DEFAULT_USER:-stockpilot}:${RABBITMQ_DEFAULT_PASS:-rabbit_dev_change_me}@rabbitmq:5672//
       STOCKPILOT_MEDIA_DIR: /var/lib/stockpilot/media
@@ -123,7 +125,7 @@ services:
       target: runtime
     environment:
       STOCKPILOT_DATABASE_URL: postgresql+psycopg://stockpilot_app:${STOCKPILOT_APP_PASSWORD:-app_dev_change_me}@postgres:5432/stockpilot
-      STOCKPILOT_EXPECTED_SCHEMA_REVISION: 0014_ops_metrics
+      STOCKPILOT_EXPECTED_SCHEMA_REVISION: 0015_backup_heartbeat
       STOCKPILOT_ENVIRONMENT: development
       STOCKPILOT_OIDC_ISSUER: ${STOCKPILOT_OIDC_ISSUER:-http://localhost:8180/realms/stockpilot}
       STOCKPILOT_OIDC_METADATA_URL: http://keycloak:8080/realms/stockpilot/.well-known/openid-configuration
@@ -168,7 +170,7 @@ services:
       STOCKPILOT_OUTBOX_BATCH_SIZE: ${STOCKPILOT_OUTBOX_BATCH_SIZE:-50}
       STOCKPILOT_OUTBOX_LEASE_SECONDS: ${STOCKPILOT_OUTBOX_LEASE_SECONDS:-30}
       STOCKPILOT_RELAY_POLL_SECONDS: ${STOCKPILOT_RELAY_POLL_SECONDS:-1}
-      STOCKPILOT_EXPECTED_SCHEMA_REVISION: 0014_ops_metrics
+      STOCKPILOT_EXPECTED_SCHEMA_REVISION: 0015_backup_heartbeat
     command: ["python", "-m", "stockpilot.bootstrap.relay"]
     depends_on:
       postgres:
@@ -187,7 +189,7 @@ services:
     environment:
       STOCKPILOT_DATABASE_URL: postgresql+psycopg://stockpilot_app:${STOCKPILOT_APP_PASSWORD:-app_dev_change_me}@postgres:5432/stockpilot
       STOCKPILOT_CELERY_BROKER_URL: amqp://${RABBITMQ_DEFAULT_USER:-stockpilot}:${RABBITMQ_DEFAULT_PASS:-rabbit_dev_change_me}@rabbitmq:5672//
-      STOCKPILOT_EXPECTED_SCHEMA_REVISION: 0014_ops_metrics
+      STOCKPILOT_EXPECTED_SCHEMA_REVISION: 0015_backup_heartbeat
       STOCKPILOT_WORKER_IDLE_HEARTBEAT_SECONDS: ${STOCKPILOT_WORKER_IDLE_HEARTBEAT_SECONDS:-60}
     command:
       [
@@ -217,7 +219,7 @@ services:
       target: runtime
     environment:
       STOCKPILOT_DATABASE_URL: postgresql+psycopg://stockpilot_app:${STOCKPILOT_APP_PASSWORD:-app_dev_change_me}@postgres:5432/stockpilot
-      STOCKPILOT_EXPECTED_SCHEMA_REVISION: 0014_ops_metrics
+      STOCKPILOT_EXPECTED_SCHEMA_REVISION: 0015_backup_heartbeat
       STOCKPILOT_SCHEDULER_INTERVAL_SECONDS: ${STOCKPILOT_SCHEDULER_INTERVAL_SECONDS:-60}
       STOCKPILOT_SCHEDULER_HEARTBEAT_STALE_SECONDS: ${STOCKPILOT_SCHEDULER_HEARTBEAT_STALE_SECONDS:-180}
     command: ["python", "-m", "stockpilot.bootstrap.scheduler"]
@@ -258,10 +260,12 @@ services:
       STOCKPILOT_RELAY_PASSWORD: ${STOCKPILOT_RELAY_PASSWORD:-relay_dev_change_me}
       STOCKPILOT_METRICS_PASSWORD: ${STOCKPILOT_METRICS_PASSWORD:-metrics_dev_change_me}
       STOCKPILOT_METRICS_DATABASE_URL: postgresql+psycopg://stockpilot_metrics:${STOCKPILOT_METRICS_PASSWORD:-metrics_dev_change_me}@postgres:5432/stockpilot_test
+      STOCKPILOT_BACKUP_PASSWORD: ${STOCKPILOT_BACKUP_PASSWORD:-backup_dev_change_me}
+      STOCKPILOT_BACKUP_DATABASE_URL: postgresql+psycopg://stockpilot_backup:${STOCKPILOT_BACKUP_PASSWORD:-backup_dev_change_me}@postgres:5432/stockpilot_test
       # Isolated vhost so a live compose worker on "/" cannot steal test messages.
       STOCKPILOT_CELERY_BROKER_URL: amqp://${RABBITMQ_DEFAULT_USER:-stockpilot}:${RABBITMQ_DEFAULT_PASS:-rabbit_dev_change_me}@rabbitmq:5672/stockpilot_test
       STOCKPILOT_TEST_RABBITMQ_VHOST: stockpilot_test
-      STOCKPILOT_EXPECTED_SCHEMA_REVISION: 0014_ops_metrics
+      STOCKPILOT_EXPECTED_SCHEMA_REVISION: 0015_backup_heartbeat
       STOCKPILOT_API_METRICS_ENABLED: "false"
       STOCKPILOT_MEDIA_DIR: /tmp/stockpilot-media-test
       STOCKPILOT_COMPOSE_PATH: /compose.yaml
@@ -317,7 +321,7 @@ services:
       STOCKPILOT_METRICS_DATABASE_URL: postgresql+psycopg://stockpilot_metrics:${STOCKPILOT_METRICS_PASSWORD:-metrics_dev_change_me}@postgres:5432/stockpilot
       STOCKPILOT_OPS_EXPORTER_PORT: "9108"
       STOCKPILOT_OPS_EXPORTER_INTERVAL_SECONDS: "15"
-      STOCKPILOT_EXPECTED_SCHEMA_REVISION: 0014_ops_metrics
+      STOCKPILOT_EXPECTED_SCHEMA_REVISION: 0015_backup_heartbeat
     command: ["python", "-m", "stockpilot.bootstrap.ops_exporter"]
     depends_on:
       postgres:
@@ -394,6 +398,107 @@ services:
       - stockpilot
     restart: unless-stopped
 
+  # Operational backup (profile backup). No Docker socket. No host ports.
+  # Dumps as stockpilot_backup; restic encrypts to RESTIC_REPOSITORY.
+  # restic_practice volume is PRACTICE ONLY (not off-host / not host-loss proof).
+  backup:
+    profiles: ["backup"]
+    build:
+      context: ./infra/backup
+    user: "1000:1000"
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: stockpilot_backup
+      PGPASSWORD: ${STOCKPILOT_BACKUP_PASSWORD:-backup_dev_change_me}
+      RESTIC_REPOSITORY: ${RESTIC_REPOSITORY:-/var/lib/stockpilot/restic-practice}
+      RESTIC_PASSWORD: ${RESTIC_PASSWORD:-practice_restic_password_change_me}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-}
+      STOCKPILOT_IMAGE_TAG: ${STOCKPILOT_IMAGE_TAG:-local}
+      STOCKPILOT_MEDIA_DIR: /var/lib/stockpilot/media
+      STOCKPILOT_BACKUP_SCRATCH: /var/lib/stockpilot/backup-scratch
+      STOCKPILOT_BACKUP_CHECK_EVERY_N: ${STOCKPILOT_BACKUP_CHECK_EVERY_N:-14}
+    volumes:
+      - stockpilot_media:/var/lib/stockpilot/media:ro
+      - backup_scratch:/var/lib/stockpilot/backup-scratch
+      - restic_practice:/var/lib/stockpilot/restic-practice
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    networks:
+      - stockpilot
+    restart: "no"
+    command: ["/usr/local/bin/backup.sh"]
+
+  backup-scheduler:
+    profiles: ["backup"]
+    build:
+      context: ./infra/backup
+    user: "1000:1000"
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: stockpilot_backup
+      PGPASSWORD: ${STOCKPILOT_BACKUP_PASSWORD:-backup_dev_change_me}
+      RESTIC_REPOSITORY: ${RESTIC_REPOSITORY:-/var/lib/stockpilot/restic-practice}
+      RESTIC_PASSWORD: ${RESTIC_PASSWORD:-practice_restic_password_change_me}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-}
+      STOCKPILOT_IMAGE_TAG: ${STOCKPILOT_IMAGE_TAG:-local}
+      STOCKPILOT_MEDIA_DIR: /var/lib/stockpilot/media
+      STOCKPILOT_BACKUP_SCRATCH: /var/lib/stockpilot/backup-scratch
+      STOCKPILOT_BACKUP_INTERVAL_SECONDS: ${STOCKPILOT_BACKUP_INTERVAL_SECONDS:-43200}
+      STOCKPILOT_BACKUP_CHECK_EVERY_N: ${STOCKPILOT_BACKUP_CHECK_EVERY_N:-14}
+    volumes:
+      - stockpilot_media:/var/lib/stockpilot/media:ro
+      - backup_scratch:/var/lib/stockpilot/backup-scratch
+      - restic_practice:/var/lib/stockpilot/restic-practice
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    networks:
+      - stockpilot
+    restart: unless-stopped
+    command: ["/usr/local/bin/scheduler.sh"]
+
+  restore:
+    profiles: ["backup"]
+    build:
+      context: ./infra/backup
+    user: "1000:1000"
+    environment:
+      STOCKPILOT_RESTORE_CONFIRM: ${STOCKPILOT_RESTORE_CONFIRM:-}
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: ${POSTGRES_SUPERUSER:-postgres}
+      PGPASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:-postgres}
+      RESTIC_REPOSITORY: ${RESTIC_REPOSITORY:-/var/lib/stockpilot/restic-practice}
+      RESTIC_PASSWORD: ${RESTIC_PASSWORD:-practice_restic_password_change_me}
+      RESTIC_SNAPSHOT: ${RESTIC_SNAPSHOT:-latest}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-}
+      STOCKPILOT_MEDIA_DIR: /var/lib/stockpilot/media
+      STOCKPILOT_BACKUP_SCRATCH: /var/lib/stockpilot/backup-scratch
+    volumes:
+      - stockpilot_media:/var/lib/stockpilot/media
+      - backup_scratch:/var/lib/stockpilot/backup-scratch
+      - restic_practice:/var/lib/stockpilot/restic-practice
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - stockpilot
+    restart: "no"
+    command: ["/usr/local/bin/restore.sh"]
+
 networks:
   stockpilot:
     driver: bridge
@@ -402,3 +507,6 @@ volumes:
   postgres_data:
   rabbitmq_data:
   stockpilot_media:
+  backup_scratch:
+  # PRACTICE ONLY — stands in for off-host restic; not a host-loss restore proof.
+  restic_practice:

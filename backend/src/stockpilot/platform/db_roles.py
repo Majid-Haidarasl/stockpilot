@@ -7,6 +7,7 @@ from sqlalchemy.engine import Connection
 
 RELAY_ROLE = "stockpilot_relay"
 METRICS_ROLE = "stockpilot_metrics"
+BACKUP_ROLE = "stockpilot_backup"
 
 
 def _ensure_login_role(
@@ -86,6 +87,58 @@ def ensure_stockpilot_metrics(conn: Connection, *, password: str | None) -> None
     )
 
 
+def ensure_stockpilot_backup(conn: Connection, *, password: str | None) -> None:
+    """Create or update stockpilot_backup: LOGIN BYPASSRLS + pg_read_all_data.
+
+    Safe to re-run. Never SUPERUSER. Passwords applied only when provided.
+    Table/function EXECUTE grants come from Alembic (record_backup_heartbeat).
+    """
+    exists = conn.execute(
+        text("SELECT 1 FROM pg_roles WHERE rolname = :name"),
+        {"name": BACKUP_ROLE},
+    ).first()
+    if exists is None:
+        if not password:
+            raise RuntimeError(
+                "Role stockpilot_backup does not exist and no password was provided "
+                "via STOCKPILOT_BACKUP_PASSWORD"
+            )
+        quoted = conn.execute(
+            text("SELECT quote_literal(:pw)"),
+            {"pw": password},
+        ).scalar_one()
+        conn.execute(
+            text(
+                f"CREATE ROLE {BACKUP_ROLE} LOGIN NOSUPERUSER NOCREATEDB "
+                f"NOCREATEROLE BYPASSRLS INHERIT PASSWORD {quoted}"
+            )
+        )
+    else:
+        conn.execute(
+            text(
+                f"ALTER ROLE {BACKUP_ROLE} WITH LOGIN NOSUPERUSER NOCREATEDB "
+                "NOCREATEROLE BYPASSRLS INHERIT"
+            )
+        )
+        if password:
+            quoted = conn.execute(
+                text("SELECT quote_literal(:pw)"),
+                {"pw": password},
+            ).scalar_one()
+            conn.execute(text(f"ALTER ROLE {BACKUP_ROLE} PASSWORD {quoted}"))
+
+    # PG16+: membership may be WITH INHERIT FALSE by default for some grants;
+    # pg_dump needs inherited pg_read_all_data (schema USAGE + SELECT).
+    conn.execute(text(f"GRANT pg_read_all_data TO {BACKUP_ROLE} WITH INHERIT TRUE"))
+    for db_name in ("stockpilot", "stockpilot_test", "keycloak", "postgres"):
+        db_exists = conn.execute(
+            text("SELECT 1 FROM pg_database WHERE datname = :name"),
+            {"name": db_name},
+        ).first()
+        if db_exists is not None:
+            conn.execute(text(f'GRANT CONNECT ON DATABASE "{db_name}" TO {BACKUP_ROLE}'))
+
+
 def require_relay_role(conn: Connection) -> None:
     """Fail migration with a clear message if stockpilot_relay is missing."""
     exists = conn.execute(
@@ -110,6 +163,21 @@ def require_metrics_role(conn: Connection) -> None:
     if exists is None:
         raise RuntimeError(
             "Database role stockpilot_metrics does not exist. "
+            "Run `docker compose ... run --rm ops ensure-db-roles` "
+            "(or recreate Postgres from init) before migrate. "
+            "Migrations never CREATE ROLE or store passwords."
+        )
+
+
+def require_backup_role(conn: Connection) -> None:
+    """Fail migration with a clear message if stockpilot_backup is missing."""
+    exists = conn.execute(
+        text("SELECT 1 FROM pg_roles WHERE rolname = :name"),
+        {"name": BACKUP_ROLE},
+    ).first()
+    if exists is None:
+        raise RuntimeError(
+            "Database role stockpilot_backup does not exist. "
             "Run `docker compose ... run --rm ops ensure-db-roles` "
             "(or recreate Postgres from init) before migrate. "
             "Migrations never CREATE ROLE or store passwords."

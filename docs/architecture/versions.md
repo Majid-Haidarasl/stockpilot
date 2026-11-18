@@ -14,6 +14,8 @@ Host: Windows 11 + Docker Desktop (WSL2), AMD64. Containers are Linux.
 | `ghcr.io/astral-sh/uv` | `0.9.7` | `sha256:ba4857bf2a068e9bc0e64eed8563b065908a4cd6bfb66b531a9c424c8e25e142` |
 | `ghcr.io/astral-sh/uv` (python bookworm helper) | `0.9.7-python3.13-bookworm` | `sha256:09cca80667a9bd6d4515f0052ba2cde84ca6b9b7dbccc583f44fd0d703ddf37b` |
 | `rabbitmq` | `4.4.0-management-alpine` | `sha256:4841f6384ef8313c3594cd3f2e9f40c10805f8a61c45f08a9a5d9ddea8199267` (Phase 5.1, 2026-11-15) |
+| `restic` (in `infra/backup` image) | `0.17.3` | Downloaded in Dockerfile from GitHub releases (Phase 6.3) |
+| `postgres` client (backup image) | `17` | Same image family as server; used for `pg_dump` / `pg_restore` |
 
 ## Backend packages (from `uv.lock`, verified in containers)
 

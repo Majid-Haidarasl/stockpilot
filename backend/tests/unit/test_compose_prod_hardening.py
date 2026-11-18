@@ -138,6 +138,7 @@ def test_images_use_lowercase_ghcr_owner() -> None:
     text = _prod_text()
     assert "ghcr.io/majid-haidarasl/stockpilot-backend" in text
     assert "ghcr.io/majid-haidarasl/stockpilot-edge" in text
+    assert "ghcr.io/majid-haidarasl/stockpilot-backup" in text
     assert re.search(r"ghcr\.io/[A-Z]", text) is None
 
 

@@ -80,7 +80,7 @@ Browse `http://127.0.0.1:8300`. Do not publish Grafana on `0.0.0.0`.
 
 ## Normal release
 
-1. **Backup first.** Until Run 6.3 automates off-host backup, take a manual `pg_dump` of `stockpilot` and `keycloak` and copy it off-box. Record that you did so before migrating.
+1. **Backup first.** Run a successful profile `backup` job (or confirm `platform.heartbeats` / Grafana shows a fresh `backup` heartbeat and a reachable restic snapshot). See [backup-restore.md](backup-restore.md). Do not migrate on a stale or failed backup.
 2. Note current and target `STOCKPILOT_IMAGE_TAG` (git SHA) and digests from the release workflow.
 3. Update `/etc/stockpilot/.env` with the new SHA; `docker compose … pull`.
 4. Drain processors: stop `relay`, `worker`, `scheduler`; allow in-flight work a short finish window. If the migration is incompatible with the running API, stop `api` too (maintenance window).

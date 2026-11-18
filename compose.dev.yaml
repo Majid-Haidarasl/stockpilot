@@ -66,11 +66,16 @@ services:
       - ./docs:/docs:ro
       - ./compose.prod.yaml:/compose.prod.yaml:ro
       - ./infra/caddy:/caddy:ro
+      - ./infra/prometheus/alerts.yml:/alerts.yml:ro
+      - ./infra/backup:/backup:ro
     environment:
       STOCKPILOT_SAMPLE_DATA_PATH: /docs/stockpilot-sample-data.md
       STOCKPILOT_COMPOSE_PROD_PATH: /compose.prod.yaml
       STOCKPILOT_CADDY_PROD_PATH: /caddy/Caddyfile
       STOCKPILOT_CADDY_LOCAL_PATH: /caddy/Caddyfile.local
+      STOCKPILOT_ALERTS_PATH: /alerts.yml
+      STOCKPILOT_BACKUP_DIR: /backup
+      STOCKPILOT_BACKUP_PASSWORD: ${STOCKPILOT_BACKUP_PASSWORD:-backup_dev_change_me}
 
   openapi-export:
     volumes:
