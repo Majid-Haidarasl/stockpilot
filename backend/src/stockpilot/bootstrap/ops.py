@@ -613,6 +613,12 @@ def main(argv: list[str] | None = None) -> None:
     balance = sub.add_parser("balance-check", help="Report stock ledger vs counter mismatches")
     balance.add_argument("--tenant-slug", default=None)
 
+    seed_load = sub.add_parser(
+        "seed-load",
+        help=("Prod-like only: seed load-01..load-10 (requires STOCKPILOT_ALLOW_LOAD_SEED=true)"),
+    )
+    seed_load.add_argument("--environment", default="production")
+
     sub.add_parser(
         "ensure-db-roles",
         help="Idempotent create/update stockpilot_relay + stockpilot_metrics",
@@ -681,6 +687,10 @@ def main(argv: list[str] | None = None) -> None:
         cmd_cleanup_test_tenants(args.environment)
     elif args.command == "balance-check":
         cmd_balance_check(args.tenant_slug)
+    elif args.command == "seed-load":
+        from stockpilot.bootstrap.seed_load import cmd_seed_load
+
+        cmd_seed_load(args.environment)
     elif args.command == "ensure-db-roles":
         cmd_ensure_db_roles()
     elif args.command == "import-product-images":

@@ -398,3 +398,42 @@ def test_cutpoint_after_inbox_before_ack_redelivery_dedups() -> None:
     finally:
         if hung is not None:
             _kill_worker(hung)
+
+
+def test_retried_message_keeps_event_id_inbox_dedupes() -> None:
+    """Second delivery of the same event_id is a no-op via Inbox dedupe."""
+    tenant_id, _users = _seed_tenant_with_roles()
+    event_id = uuid4()
+    order_id = uuid4()
+    env = build_envelope(
+        event_id=event_id,
+        event_type="OrderConfirmed",
+        event_version="v1",
+        tenant_id=tenant_id,
+        aggregate_type="order",
+        aggregate_id=order_id,
+        occurred_at=datetime.now(UTC),
+        payload={"order_id": str(order_id)},
+        trace_id=None,
+    )
+    # At-least-once: publish twice with the same envelope / event_id.
+    first_pub = publish_celery_task(
+        broker_url=_broker(),
+        task_name=ORDER_LIFECYCLE_TASK,
+        envelope=env,
+    )
+    second_pub = publish_celery_task(
+        broker_url=_broker(),
+        task_name=ORDER_LIFECYCLE_TASK,
+        envelope=env,
+    )
+    assert first_pub.ok and second_pub.ok
+    assert env["event_id"] == str(event_id)
+
+    first = process_order_lifecycle_event(env, engine=_app())
+    second = process_order_lifecycle_event(env, engine=_app())
+    assert first["duplicate"] is False
+    assert second["duplicate"] is True
+    assert second["event_id"] == str(event_id)
+    assert _inbox_count(event_id) == 1
+    assert _count_notifications_for_event(event_id) == first["notifications"]

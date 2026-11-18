@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import text
+from sqlalchemy import bindparam, text
 from sqlalchemy.engine import Connection
 
 from stockpilot.platform.outbox.backoff import publish_failure_backoff
@@ -93,21 +93,26 @@ def claim_batch(
 
 def mark_published(conn: Connection, *, event_id: UUID) -> bool:
     """Idempotent success mark. Returns True if this call set published_at."""
-    result = conn.execute(
-        text(
-            """
-            UPDATE platform.outbox
-            SET published_at = now(),
-                lease_owner = NULL,
-                lease_expires_at = NULL,
-                last_error = NULL
-            WHERE event_id = :event_id
-              AND published_at IS NULL
-            """
-        ),
-        {"event_id": str(event_id)},
-    )
-    return bool(result.rowcount)
+    return mark_published_many(conn, event_ids=[event_id]) == 1
+
+
+def mark_published_many(conn: Connection, *, event_ids: list[UUID]) -> int:
+    """Idempotent success mark for many ids in one statement. Returns rows updated."""
+    if not event_ids:
+        return 0
+    stmt = text(
+        """
+        UPDATE platform.outbox
+        SET published_at = now(),
+            lease_owner = NULL,
+            lease_expires_at = NULL,
+            last_error = NULL
+        WHERE event_id IN :event_ids
+          AND published_at IS NULL
+        """
+    ).bindparams(bindparam("event_ids", expanding=True))
+    result = conn.execute(stmt, {"event_ids": [str(eid) for eid in event_ids]})
+    return int(result.rowcount or 0)
 
 
 def record_publish_failure(

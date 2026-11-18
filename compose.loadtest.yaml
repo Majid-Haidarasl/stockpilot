@@ -1,0 +1,30 @@
+# Locust load-test overlay — use ONLY with prod-like files:
+#   compose.yaml + compose.prod.yaml + compose.prodlike.yaml + compose.loadtest.yaml
+#   -p stockpilot-prodlike --env-file env.prodlike
+# Never merge this file into the dev stack. No host ports.
+services:
+  load-test:
+    profiles: ["test"]
+    build:
+      context: ./tests/load
+    environment:
+      # Use public hostnames (Caddy TLS SNI / aliases), not the compose service name.
+      STOCKPILOT_LOAD_BASE: https://stockpilot.local
+      STOCKPILOT_LOAD_AUTH_HOST: auth.stockpilot.local
+      STOCKPILOT_LOAD_PASSWORD: ${STOCKPILOT_LOAD_PASSWORD:?set STOCKPILOT_LOAD_PASSWORD in env.prodlike}
+      STOCKPILOT_LOAD_RESULTS_DIR: /results
+      # Optional: override Locust args via command on `compose run`
+    volumes:
+      - ./tests/load/results:/results
+    networks:
+      - stockpilot
+    # No ports — headless only; HTML/CSV land in tests/load/results/
+    restart: "no"
+
+  ops:
+    environment:
+      # Pass-through only; real production .env must omit or leave false.
+      STOCKPILOT_ALLOW_LOAD_SEED: ${STOCKPILOT_ALLOW_LOAD_SEED:-false}
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-}
+      STOCKPILOT_LOAD_PASSWORD: ${STOCKPILOT_LOAD_PASSWORD:-}

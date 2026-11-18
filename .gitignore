@@ -165,6 +165,7 @@ blob-report/
 .nyc_output/
 locust_*.csv
 locust_*.html
+tests/load/results/
 *.prof
 *.lprof
 

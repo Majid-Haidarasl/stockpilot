@@ -307,6 +307,59 @@ def test_publish_celery_task_happy_path() -> None:
     assert result.ok is True
 
 
+def test_relay_publishes_batch_of_five_in_one_cycle() -> None:
+    """One run_once cycle must publish N claimed events (batch path)."""
+    from sqlalchemy import bindparam
+
+    tenant_id = _seed_tenant()
+    event_ids = [_insert_outbox(tenant_id=tenant_id) for _ in range(5)]
+    id_strs = [str(eid) for eid in event_ids]
+    # Hold everything else so this cycle only sees our five.
+    with _migrator().begin() as conn:
+        conn.execute(
+            text(
+                """
+                UPDATE platform.outbox
+                SET lease_owner = 'test-hold',
+                    lease_expires_at = now() + interval '1 day'
+                WHERE published_at IS NULL
+                  AND event_id NOT IN :ids
+                """
+            ).bindparams(bindparam("ids", expanding=True)),
+            {"ids": id_strs},
+        )
+        conn.execute(
+            text(
+                """
+                UPDATE platform.outbox
+                SET lease_owner = NULL, lease_expires_at = NULL, last_error = NULL
+                WHERE event_id IN :ids
+                """
+            ).bindparams(bindparam("ids", expanding=True)),
+            {"ids": id_strs},
+        )
+
+    n = run_once(
+        database_url=os.environ["STOCKPILOT_RELAY_DATABASE_URL"],
+        broker_url=_broker(),
+        batch_size=50,
+        lease_seconds=30,
+    )
+    assert n >= 5
+    with _relay().connect() as conn:
+        published = conn.execute(
+            text(
+                """
+                SELECT COUNT(*) FROM platform.outbox
+                WHERE event_id IN :ids
+                  AND published_at IS NOT NULL
+                """
+            ).bindparams(bindparam("ids", expanding=True)),
+            {"ids": id_strs},
+        ).scalar_one()
+    assert int(published) == 5
+
+
 def test_outage_recovery_publishes_after_broker_available() -> None:
     """Order Outbox row written without requiring broker; relay publishes when up."""
     tenant_id = _seed_tenant()
